@@ -5,10 +5,21 @@ import type { EChartsOption } from 'echarts'
 import VChart from '@/components/charts/VChart.vue'
 import { getAdminDashboard, type AdminDashboard } from '@/services/dashboardService'
 import { getUserName } from '@/mocks/users'
+import { reviewStatusLabels, type ReviewStatus } from '@/types/paper'
 
 const router = useRouter()
 const loading = ref(true)
 const data = ref<AdminDashboard | null>(null)
+
+const statusClassMap: Record<ReviewStatus, string> = {
+  pending: 'ph-status--warning',
+  approved: 'ph-status--success',
+  rejected: 'ph-status--danger',
+  offline: 'ph-status--info',
+}
+function statusClass(status?: ReviewStatus): string {
+  return status ? statusClassMap[status] : 'ph-status--info'
+}
 
 onMounted(async () => {
   data.value = await getAdminDashboard()
@@ -265,11 +276,8 @@ const categoryChartOption = computed<EChartsOption>(() => {
                 </el-link>
               </div>
               <div v-for="p in data.recentUploads" :key="p.id" class="task-row">
-                <span
-                  class="ph-status"
-                  :class="p.reviewStatus === 'pending' ? 'ph-status--warning' : 'ph-status--success'"
-                >
-                  {{ p.reviewStatus === 'pending' ? '待审核' : '已通过' }}
+                <span class="ph-status" :class="statusClass(p.reviewStatus)">
+                  {{ reviewStatusLabels[p.reviewStatus as ReviewStatus] ?? '未知' }}
                 </span>
                 <div class="task-main">
                   <div class="task-title ph-ellipsis">{{ p.title }}</div>

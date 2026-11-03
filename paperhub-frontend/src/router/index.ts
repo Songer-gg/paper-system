@@ -39,19 +39,19 @@ const router = createRouter({
         {
           path: 'library/mine',
           name: 'user-library-mine',
-          component: PlaceholderView,
+          component: () => import('@/views/user/library/MyLibraryView.vue'),
           meta: { title: '我的论文库', group: '论文中心' },
         },
         {
           path: 'papers/upload',
           name: 'user-paper-upload',
-          component: PlaceholderView,
+          component: () => import('@/views/user/papers/UploadPaperView.vue'),
           meta: { title: '上传论文', group: '论文中心' },
         },
         {
           path: 'papers/:id',
           name: 'paper-detail',
-          component: PlaceholderView,
+          component: () => import('@/views/user/papers/PaperDetailView.vue'),
           meta: { title: '论文详情', group: '论文中心' },
         },
         {
@@ -96,7 +96,7 @@ const router = createRouter({
     {
       path: '/user/papers/:id/reader',
       name: 'paper-reader',
-      component: PlaceholderView,
+      component: () => import('@/views/user/papers/PaperReaderView.vue'),
       meta: { title: 'PDF 阅读器', group: '论文中心' },
     },
     /* ---------------- 管理员端 ---------------- */
