@@ -2,7 +2,6 @@ import type { Note, Paper, ReviewStatus } from '@/types/paper'
 import { loadJSON, saveJSON } from '@/utils/storage'
 import { sharedPapers } from '@/mocks/papers/sharedPapers'
 import { privatePapers } from '@/mocks/papers/privatePapers'
-import { seedNotes } from '@/mocks/user/notes'
 import * as userData from '@/services/userDataService'
 
 /**
@@ -16,7 +15,6 @@ const OVERLAY_KEY = 'ph_paper_overlay'
 const DELETED_KEY = 'ph_deleted_papers'
 const UPLOADED_KEY = 'ph_uploaded_papers'
 const DRAFT_KEY = 'ph_upload_draft'
-const NOTE_KEY = 'ph_notes'
 
 type PaperOverlay = Partial<Paper>
 
@@ -24,7 +22,6 @@ let overlay = loadJSON<Record<number, PaperOverlay>>(OVERLAY_KEY, {})
 let deletedIds = loadJSON<number[]>(DELETED_KEY, [])
 let uploadedPapers = loadJSON<Paper[]>(UPLOADED_KEY, [])
 let draft = loadJSON<UploadDraft | null>(DRAFT_KEY, null)
-let notes = loadJSON<Note[]>(NOTE_KEY, seedNotes)
 
 function delay<T>(value: T, ms = 200): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
@@ -264,21 +261,11 @@ export function clearDraft(): void {
 
 /* ---------------- 笔记 ---------------- */
 
+/** 新增阅读笔记（委托 userDataService 统一管理缓存） */
 export async function addNote(input: {
   title: string
   paperId: number
   content: string
 }): Promise<Note> {
-  const maxId = notes.reduce((m, n) => Math.max(m, n.id), 5000)
-  const note: Note = {
-    id: maxId + 1,
-    title: input.title,
-    paperId: input.paperId,
-    content: input.content,
-    createdAt: now(),
-    updatedAt: now(),
-  }
-  notes.unshift(note)
-  saveJSON(NOTE_KEY, notes)
-  return delay(note)
+  return userData.addNote(input)
 }

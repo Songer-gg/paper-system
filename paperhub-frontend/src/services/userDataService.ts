@@ -90,3 +90,44 @@ export async function updateReadingStatus(
 export async function getNotes(): Promise<Note[]> {
   return delay(notes.map((n) => ({ ...n })))
 }
+
+export async function addNote(input: {
+  title: string
+  paperId: number
+  content: string
+}): Promise<Note> {
+  const maxId = notes.reduce((m, n) => Math.max(m, n.id), 5000)
+  const note: Note = {
+    id: maxId + 1,
+    title: input.title.trim(),
+    paperId: input.paperId,
+    content: input.content.trim(),
+    createdAt: now(),
+    updatedAt: now(),
+  }
+  notes.unshift(note)
+  saveJSON(NOTE_KEY, notes)
+  return delay(note)
+}
+
+export async function updateNote(
+  id: number,
+  patch: { title?: string; paperId?: number; content?: string },
+): Promise<Note | null> {
+  const note = notes.find((n) => n.id === id)
+  if (!note) return delay(null)
+  if (patch.title !== undefined) note.title = patch.title.trim()
+  if (patch.paperId !== undefined) note.paperId = patch.paperId
+  if (patch.content !== undefined) note.content = patch.content.trim()
+  note.updatedAt = now()
+  saveJSON(NOTE_KEY, notes)
+  return delay({ ...note })
+}
+
+export async function deleteNote(id: number): Promise<boolean> {
+  const idx = notes.findIndex((n) => n.id === id)
+  if (idx < 0) return delay(false)
+  notes.splice(idx, 1)
+  saveJSON(NOTE_KEY, notes)
+  return delay(true)
+}
