@@ -3,11 +3,9 @@ import { useAuthStore } from '@/stores/auth'
 
 /**
  * 第一阶段路由表
- * - 业务页面按批次逐步实现，未实现的页面统一指向 PlaceholderView
+ * - 业务页面已按批次全部实现（用户端 + 管理员端）
  * - 登录页独立布局；用户端 / 管理员端分别使用独立 Layout
  */
-const PlaceholderView = () => import('@/views/placeholder/PlaceholderView.vue')
-
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -114,85 +112,85 @@ const router = createRouter({
         {
           path: 'users',
           name: 'admin-users',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/users/UsersView.vue'),
           meta: { title: '用户列表', group: '用户管理' },
         },
         {
           path: 'users/:id',
           name: 'admin-user-detail',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/users/UserDetailView.vue'),
           meta: { title: '用户详情', group: '用户管理' },
         },
         {
           path: 'papers',
           name: 'admin-papers',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/papers/PapersView.vue'),
           meta: { title: '共享论文列表', group: '论文资源管理' },
         },
         {
           path: 'papers/offline',
           name: 'admin-papers-offline',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/papers/OfflinePapersView.vue'),
           meta: { title: '论文下架管理', group: '论文资源管理' },
         },
         {
           path: 'review',
           name: 'admin-review',
-          component: PlaceholderView,
-          meta: { title: '待审核论文', group: '内容审核' },
+          component: () => import('@/views/admin/review/ReviewView.vue'),
+          meta: { title: '论文审核', group: '内容审核' },
         },
         {
           path: 'review/records',
           name: 'admin-review-records',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/review/ReviewRecordsView.vue'),
           meta: { title: '审核记录', group: '内容审核' },
         },
         {
           path: 'duplicates',
           name: 'admin-duplicates',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/duplicates/DuplicatesView.vue'),
           meta: { title: '疑似重复论文', group: '重复论文管理' },
         },
         {
           path: 'duplicates/records',
           name: 'admin-duplicates-records',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/duplicates/DuplicateRecordsView.vue'),
           meta: { title: '重复论文处理记录', group: '重复论文管理' },
         },
         {
           path: 'categories',
           name: 'admin-categories',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/categories/CategoriesView.vue'),
           meta: { title: '平台分类管理', group: '分类与标签' },
         },
         {
           path: 'tags',
           name: 'admin-tags',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/tags/TagsView.vue'),
           meta: { title: '平台标签管理', group: '分类与标签' },
         },
         {
           path: 'reports',
           name: 'admin-reports',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/reports/ReportsView.vue'),
           meta: { title: '举报列表', group: '举报管理' },
         },
         {
           path: 'reports/records',
           name: 'admin-reports-records',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/reports/ReportRecordsView.vue'),
           meta: { title: '举报处理记录', group: '举报管理' },
         },
         {
           path: 'logs',
           name: 'admin-logs',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/logs/LogsView.vue'),
           meta: { title: '操作日志', group: '系统管理' },
         },
         {
           path: 'settings',
           name: 'admin-settings',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/settings/SettingsView.vue'),
           meta: { title: '系统设置', group: '系统管理' },
         },
       ],

@@ -15,6 +15,7 @@ const CURRENT_USER_ID = 1
 const CUSTOM_CATEGORY_KEY = 'ph_custom_categories'
 const RENAMED_CATEGORY_KEY = 'ph_renamed_categories'
 const DELETED_CATEGORY_KEY = 'ph_deleted_categories'
+const MOVED_CATEGORY_KEY = 'ph_moved_categories'
 const CUSTOM_TAG_KEY = 'ph_custom_tags'
 const TAG_OVERLAY_KEY = 'ph_tag_overlay'
 const DELETED_TAG_KEY = 'ph_deleted_tags'
@@ -27,12 +28,24 @@ interface CustomCategory extends Category {
 let customCategories = loadJSON<CustomCategory[]>(CUSTOM_CATEGORY_KEY, [])
 let renamedCategories = loadJSON<Record<number, string>>(RENAMED_CATEGORY_KEY, {})
 let deletedCategoryIds = loadJSON<number[]>(DELETED_CATEGORY_KEY, [])
+let movedCategories = loadJSON<Record<number, number | null>>(MOVED_CATEGORY_KEY, {})
 let customTags = loadJSON<Tag[]>(CUSTOM_TAG_KEY, [])
 let tagOverlay = loadJSON<Record<number, Partial<Tag>>>(TAG_OVERLAY_KEY, {})
 let deletedTagIds = loadJSON<number[]>(DELETED_TAG_KEY, [])
 
 function delay<T>(value: T, ms = 150): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
+}
+
+/** 应用改名与层级调整后的全量分类（含新建、过滤已删除） */
+function effectiveCategories(): CustomCategory[] {
+  return [...mockCategories, ...customCategories]
+    .filter((c) => !deletedCategoryIds.includes(c.id))
+    .map((c) => ({
+      ...c,
+      name: renamedCategories[c.id] ?? c.name,
+      parentId: movedCategories[c.id] !== undefined ? movedCategories[c.id] : c.parentId,
+    }))
 }
 
 /* ---------------- 当前用户可见的论文池 ---------------- */
@@ -59,10 +72,7 @@ export async function getVisiblePapers(): Promise<Paper[]> {
 /* ---------------- 分类 ---------------- */
 
 export async function getCategories(): Promise<Category[]> {
-  const merged = [...mockCategories, ...customCategories]
-    .filter((c) => !deletedCategoryIds.includes(c.id))
-    .map((c) => ({ ...c, name: renamedCategories[c.id] ?? c.name }))
-  return delay(merged)
+  return delay(effectiveCategories())
 }
 
 export async function createCategory(name: string, parentId: number | null): Promise<Category> {
@@ -85,7 +95,7 @@ export async function renameCategory(id: number, name: string): Promise<boolean>
 
 /** 删除分类（含其全部子分类），返回被删除的分类名称数组 */
 export async function deleteCategory(id: number): Promise<string[]> {
-  const all = [...mockCategories, ...customCategories]
+  const all = effectiveCategories()
   const toDelete: number[] = [id]
   let frontier = [id]
   while (frontier.length) {
@@ -101,25 +111,41 @@ export async function deleteCategory(id: number): Promise<string[]> {
   return delay(names)
 }
 
+/** 调整分类层级：不允许移动到自身或其后代分类下 */
+export async function moveCategory(id: number, newParentId: number | null): Promise<boolean> {
+  if (newParentId === id) return delay(false, 60)
+  const all = effectiveCategories()
+  /* 收集 id 及其全部后代，防止形成环 */
+  const forbidden = new Set<number>([id])
+  let frontier = [id]
+  while (frontier.length) {
+    const next = all
+      .filter((c) => c.parentId !== null && frontier.includes(c.parentId))
+      .map((c) => c.id)
+    next.forEach((nid) => forbidden.add(nid))
+    frontier = next
+  }
+  if (newParentId !== null && forbidden.has(newParentId)) return delay(false, 60)
+  movedCategories[id] = newParentId
+  saveJSON(MOVED_CATEGORY_KEY, movedCategories)
+  return delay(true)
+}
+
 /** 分类（含子分类）下的论文数量 */
 export function countPapersByCategory(): Record<number, number> {
   const papers = visiblePapers()
+  const all = effectiveCategories()
   const count: Record<number, number> = {}
-  for (const cat of [...mockCategories, ...customCategories]) {
-    if (deletedCategoryIds.includes(cat.id)) continue
+  for (const cat of all) {
     // 每篇论文计数归到自身分类及其全部祖先
     for (const p of papers) {
-      let cur: Category | undefined = [...mockCategories, ...customCategories].find(
-        (c) => c.id === p.categoryId,
-      )
+      let cur: Category | undefined = all.find((c) => c.id === p.categoryId)
       while (cur) {
         if (cur.id === cat.id) {
           count[cat.id] = (count[cat.id] ?? 0) + 1
           break
         }
-        cur = cur.parentId !== null
-          ? [...mockCategories, ...customCategories].find((c) => c.id === cur!.parentId)
-          : undefined
+        cur = cur.parentId !== null ? all.find((c) => c.id === cur!.parentId) : undefined
       }
     }
   }
@@ -128,7 +154,7 @@ export function countPapersByCategory(): Record<number, number> {
 
 /** 分类（含子分类）下的相关论文，按更新时间倒序 */
 export async function getPapersOfCategory(id: number): Promise<Paper[]> {
-  const all = [...mockCategories, ...customCategories]
+  const all = effectiveCategories()
   const ids = [id]
   let frontier = [id]
   while (frontier.length) {
