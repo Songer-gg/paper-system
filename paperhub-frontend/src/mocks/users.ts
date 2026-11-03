@@ -1,0 +1,20 @@
+import type { PlatformUser } from '@/types/user'
+
+/** 平台注册用户（含当前登录用户 researcher / 管理员） */
+export const mockUsers: PlatformUser[] = [
+  { id: 1, username: 'researcher', name: '林知远', email: 'researcher@paperhub.cn', role: 'user', status: 'active', registeredAt: '2025-03-12 09:30' },
+  { id: 2, username: 'chensiyu', name: '陈思羽', email: 'chensiyu@paperhub.cn', role: 'user', status: 'active', registeredAt: '2025-05-08 14:12' },
+  { id: 3, username: 'wangmuzhi', name: '王牧之', email: 'wangmuzhi@paperhub.cn', role: 'user', status: 'active', registeredAt: '2025-07-21 10:05' },
+  { id: 4, username: 'zhaoqinglan', name: '赵青澜', email: 'zhaoqinglan@paperhub.cn', role: 'user', status: 'active', registeredAt: '2025-09-02 16:48' },
+  { id: 5, username: 'shenyizhou', name: '沈亦舟', email: 'shenyizhou@paperhub.cn', role: 'user', status: 'active', registeredAt: '2025-11-15 11:20' },
+  { id: 6, username: 'zhouziqian', name: '周子谦', email: 'zhouziqian@paperhub.cn', role: 'user', status: 'active', registeredAt: '2026-01-06 09:15' },
+  { id: 7, username: 'liumy', name: '刘明远', email: 'liumy@paperhub.cn', role: 'user', status: 'active', registeredAt: '2026-02-14 15:32' },
+  { id: 8, username: 'qianyize', name: '钱亦泽', email: 'qianyize@paperhub.cn', role: 'user', status: 'disabled', registeredAt: '2026-04-03 08:50' },
+  { id: 9, username: 'sunwuya', name: '孙无涯', email: 'sunwuya@paperhub.cn', role: 'user', status: 'active', registeredAt: '2026-11-03 08:12' },
+  { id: 10, username: 'guyuxuan', name: '顾雨轩', email: 'guyuxuan@paperhub.cn', role: 'user', status: 'active', registeredAt: '2026-10-25 20:41' },
+  { id: 101, username: 'admin', name: '平台管理员', email: 'admin@paperhub.cn', role: 'admin', status: 'active', registeredAt: '2025-01-01 08:00' },
+]
+
+export function getUserName(id: number): string {
+  return mockUsers.find((u) => u.id === id)?.name ?? '未知用户'
+}

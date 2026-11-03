@@ -75,18 +75,24 @@ const breadcrumbItems = computed(() => {
   return [group, title]
 })
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确定要退出当前账号吗？', '退出登录', {
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-    auth.logout()
-    ElMessage.success('已安全退出')
-    router.push('/login')
-  } catch {
-    /* 用户取消 */
+async function handleCommand(command: string | number | object) {
+  if (command === 'profile') {
+    router.push('/user/profile')
+    return
+  }
+  if (command === 'logout') {
+    try {
+      await ElMessageBox.confirm('确定要退出当前账号吗？', '退出登录', {
+        confirmButtonText: '退出',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+      auth.logout()
+      ElMessage.success('已安全退出')
+      router.push('/login')
+    } catch {
+      /* 用户取消 */
+    }
   }
 }
 </script>
@@ -164,7 +170,7 @@ async function handleLogout() {
 
           <el-divider direction="vertical" />
 
-          <el-dropdown trigger="click" @command="handleLogout">
+          <el-dropdown trigger="click" @command="handleCommand">
             <div class="user-chip">
               <el-avatar :size="32" class="user-avatar">
                 {{ auth.user?.name?.charAt(0) }}
@@ -174,9 +180,7 @@ async function handleLogout() {
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item :icon="'User'" disabled>
-                  个人中心（后续批次开放）
-                </el-dropdown-item>
+                <el-dropdown-item :icon="'User'" command="profile">个人中心</el-dropdown-item>
                 <el-dropdown-item :icon="'SwitchButton'" divided command="logout">
                   退出登录
                 </el-dropdown-item>

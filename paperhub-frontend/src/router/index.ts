@@ -27,13 +27,13 @@ const router = createRouter({
         {
           path: 'dashboard',
           name: 'user-dashboard',
-          component: PlaceholderView,
+          component: () => import('@/views/user/dashboard/DashboardView.vue'),
           meta: { title: '首页', group: '首页' },
         },
         {
           path: 'library/shared',
           name: 'user-library-shared',
-          component: PlaceholderView,
+          component: () => import('@/views/user/library/SharedLibraryView.vue'),
           meta: { title: '共享论文库', group: '论文中心' },
         },
         {
@@ -108,7 +108,7 @@ const router = createRouter({
         {
           path: 'dashboard',
           name: 'admin-dashboard',
-          component: PlaceholderView,
+          component: () => import('@/views/admin/dashboard/DashboardView.vue'),
           meta: { title: '管理首页', group: '平台概览' },
         },
         {
