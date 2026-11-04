@@ -87,8 +87,13 @@ const copyrightAgreed = ref(false)
 
 const yearOptions = Array.from({ length: 36 }, (_, i) => new Date().getFullYear() - i)
 
-const categoryTree = computed(() => {
-  const build = (parentId: number | null): any[] =>
+interface CascaderNode {
+  value: number
+  label: string
+  children: CascaderNode[]
+}
+const categoryTree = computed<CascaderNode[]>(() => {
+  const build = (parentId: number | null): CascaderNode[] =>
     mockCategories
       .filter((c) => c.parentId === parentId)
       .map((c) => ({ value: c.id, label: c.name, children: build(c.id) }))
@@ -258,9 +263,7 @@ function handleCancel() {
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">上传论文</h2>
-        <p class="ph-page-desc">
-          上传 PDF 文件并完善元数据；选择共享前请确认拥有相应授权
-        </p>
+        <p class="ph-page-desc">上传 PDF 文件并完善元数据；选择共享前请确认拥有相应授权</p>
       </div>
       <el-tag v-if="draftInfo" type="info" effect="plain">草稿保存于 {{ draftInfo }}</el-tag>
     </div>
@@ -332,7 +335,12 @@ function handleCancel() {
             class="info-form"
           >
             <el-form-item label="论文标题" prop="title">
-              <el-input v-model="form.title" placeholder="请输入论文标题" maxlength="120" show-word-limit />
+              <el-input
+                v-model="form.title"
+                placeholder="请输入论文标题"
+                maxlength="120"
+                show-word-limit
+              />
             </el-form-item>
             <el-form-item label="作者" prop="authors">
               <el-input v-model="form.authors" placeholder="多个作者用逗号分隔，如：张三，李四" />
@@ -352,7 +360,10 @@ function handleCancel() {
               </el-col>
             </el-row>
             <el-form-item label="DOI">
-              <el-input v-model="form.doi" placeholder="如 10.1109/XXX.2026.00001，共享时将用于查重" />
+              <el-input
+                v-model="form.doi"
+                placeholder="如 10.1109/XXX.2026.00001，共享时将用于查重"
+              />
             </el-form-item>
             <el-form-item label="摘要" prop="abstract">
               <el-input
@@ -412,7 +423,9 @@ function handleCancel() {
             <span class="section-index">4</span>
             <div>
               <div class="section-title">资源权限</div>
-              <div class="section-desc">私有资源仅自己可见；共享资源需经管理员审核通过后全员可见</div>
+              <div class="section-desc">
+                私有资源仅自己可见；共享资源需经管理员审核通过后全员可见
+              </div>
             </div>
           </div>
 
@@ -459,11 +472,16 @@ function handleCancel() {
           <div class="aside-title">提交上传</div>
           <ul class="check-list">
             <li :class="{ ok: !!file && !uploading }">
-              <el-icon><CircleCheckFilled v-if="file && !uploading" /><CircleClose v-else /></el-icon>
+              <el-icon
+                ><CircleCheckFilled v-if="file && !uploading" /><CircleClose v-else
+              /></el-icon>
               PDF 文件{{ uploading ? '上传中' : file ? '已就绪' : '未上传' }}
             </li>
             <li :class="{ ok: !!form.title && !!form.authors && !!form.abstract }">
-              <el-icon><CircleCheckFilled v-if="form.title && form.authors && form.abstract" /><CircleClose v-else /></el-icon>
+              <el-icon
+                ><CircleCheckFilled
+                  v-if="form.title && form.authors && form.abstract" /><CircleClose v-else
+              /></el-icon>
               论文基础信息
             </li>
             <li :class="{ ok: !!form.categoryId }">
@@ -471,7 +489,10 @@ function handleCancel() {
               论文分类
             </li>
             <li :class="{ ok: form.visibility === 'private' || copyrightAgreed }">
-              <el-icon><CircleCheckFilled v-if="form.visibility === 'private' || copyrightAgreed" /><CircleClose v-else /></el-icon>
+              <el-icon
+                ><CircleCheckFilled
+                  v-if="form.visibility === 'private' || copyrightAgreed" /><CircleClose v-else
+              /></el-icon>
               {{ form.visibility === 'shared' ? '版权授权确认' : '私有资源（无需授权确认）' }}
             </li>
           </ul>
@@ -486,14 +507,12 @@ function handleCancel() {
           >
             {{ form.visibility === 'shared' ? '提交审核' : '上传到私有库' }}
           </el-button>
-          <el-button size="large" class="submit-btn" @click="handleSaveDraft">
-            保存草稿
-          </el-button>
+          <el-button size="large" class="submit-btn" @click="handleSaveDraft"> 保存草稿 </el-button>
           <el-button size="large" class="submit-btn" text @click="handleCancel">取消</el-button>
 
           <div class="aside-tip">
-            共享提交时系统将自动进行 DOI / 文件 / 标题三级查重，
-            DOI 与文件重复将被阻止，标题相同可人工判断后继续。
+            共享提交时系统将自动进行 DOI / 文件 / 标题三级查重， DOI
+            与文件重复将被阻止，标题相同可人工判断后继续。
           </div>
         </div>
       </aside>
@@ -520,8 +539,7 @@ function handleCancel() {
           <div class="dup-label">已存在的论文</div>
           <div class="dup-title">{{ dupResult.paper.title }}</div>
           <div class="dup-meta">
-            {{ dupResult.paper.authors.join('，') }} ·
-            {{ dupResult.paper.journal || '未投稿' }} ·
+            {{ dupResult.paper.authors.join('，') }} · {{ dupResult.paper.journal || '未投稿' }} ·
             {{ dupResult.paper.year }} 年
           </div>
           <div v-if="dupResult.paper.doi" class="dup-meta">DOI：{{ dupResult.paper.doi }}</div>
@@ -535,11 +553,7 @@ function handleCancel() {
       </template>
       <template #footer>
         <el-button @click="dupDialogVisible = false">返回修改</el-button>
-        <el-button
-          v-if="dupResult?.level === 'title'"
-          type="warning"
-          @click="forceSubmit"
-        >
+        <el-button v-if="dupResult?.level === 'title'" type="warning" @click="forceSubmit">
           确认不同版本，继续提交
         </el-button>
       </template>

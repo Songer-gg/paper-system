@@ -48,12 +48,7 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    const user = await auth.login(
-      form.username,
-      form.password,
-      mode.value,
-      form.remember,
-    )
+    const user = await auth.login(form.username, form.password, mode.value, form.remember)
     ElMessage.success(`登录成功，欢迎回来，${user.name}`)
     const redirect = (route.query.redirect as string) || auth.homePath
     router.push(redirect)
@@ -85,9 +80,7 @@ function notifyNotReady() {
           <span class="logo-name">PaperHub</span>
         </div>
 
-        <h1 class="brand-headline">
-          让学术文献管理<br />更简单、更高效
-        </h1>
+        <h1 class="brand-headline">让学术文献管理<br />更简单、更高效</h1>
         <p class="brand-intro">
           PaperHub 是面向科研人员的论文管理与共享平台。
           统一的共享资源库避免重复上传，个人知识体系助力高效科研。
@@ -95,21 +88,27 @@ function notifyNotReady() {
 
         <ul class="brand-features">
           <li>
-            <div class="feature-icon"><el-icon :size="16"><Collection /></el-icon></div>
+            <div class="feature-icon">
+              <el-icon :size="16"><Collection /></el-icon>
+            </div>
             <div>
               <div class="feature-title">共享论文库</div>
               <div class="feature-desc">平台统一审核，避免重复上传相同论文</div>
             </div>
           </li>
           <li>
-            <div class="feature-icon"><el-icon :size="16"><Notebook /></el-icon></div>
+            <div class="feature-icon">
+              <el-icon :size="16"><Notebook /></el-icon>
+            </div>
             <div>
               <div class="feature-title">个人知识管理</div>
               <div class="feature-desc">分类、标签、阅读状态与阅读笔记</div>
             </div>
           </li>
           <li>
-            <div class="feature-icon"><el-icon :size="16"><Lock /></el-icon></div>
+            <div class="feature-icon">
+              <el-icon :size="16"><Lock /></el-icon>
+            </div>
             <div>
               <div class="feature-title">私有空间</div>
               <div class="feature-desc">私有论文仅自己可见，安全可靠</div>
@@ -184,21 +183,14 @@ function notifyNotReady() {
             </el-link>
           </div>
 
-          <el-button
-            type="primary"
-            class="login-btn"
-            :loading="loading"
-            @click="handleLogin"
-          >
+          <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">
             {{ loading ? '正在登录…' : '登 录' }}
           </el-button>
         </el-form>
 
         <div v-if="mode === 'user'" class="register-entry">
           还没有账号？
-          <el-link type="primary" underline="never" @click="notifyNotReady">
-            立即注册
-          </el-link>
+          <el-link type="primary" underline="never" @click="notifyNotReady"> 立即注册 </el-link>
         </div>
         <div v-else class="admin-note">
           <el-icon :size="13"><InfoFilled /></el-icon>

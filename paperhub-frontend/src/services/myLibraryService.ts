@@ -2,6 +2,7 @@ import type { Note, Paper, ReviewStatus } from '@/types/paper'
 import { loadJSON, saveJSON } from '@/utils/storage'
 import { sharedPapers } from '@/mocks/papers/sharedPapers'
 import { privatePapers } from '@/mocks/papers/privatePapers'
+import { pendingPapers } from '@/mocks/papers/pendingPapers'
 import * as userData from '@/services/userDataService'
 
 /**
@@ -18,9 +19,9 @@ const DRAFT_KEY = 'ph_upload_draft'
 
 type PaperOverlay = Partial<Paper>
 
-let overlay = loadJSON<Record<number, PaperOverlay>>(OVERLAY_KEY, {})
-let deletedIds = loadJSON<number[]>(DELETED_KEY, [])
-let uploadedPapers = loadJSON<Paper[]>(UPLOADED_KEY, [])
+const overlay = loadJSON<Record<number, PaperOverlay>>(OVERLAY_KEY, {})
+const deletedIds = loadJSON<number[]>(DELETED_KEY, [])
+const uploadedPapers = loadJSON<Paper[]>(UPLOADED_KEY, [])
 let draft = loadJSON<UploadDraft | null>(DRAFT_KEY, null)
 
 function delay<T>(value: T, ms = 200): Promise<T> {
@@ -47,38 +48,36 @@ export async function getMyPapers(): Promise<{
   const myStatic = [...sharedPapers, ...privatePapers]
     .filter((p) => p.uploaderId === CURRENT_USER_ID)
     .map(mergePaper)
-  const myUploaded = uploadedPapers.filter(
-    (p) => p.uploaderId === CURRENT_USER_ID,
-  )
-  const all = [...myStatic, ...myUploaded].filter(
-    (p) => !deletedIds.includes(p.id),
-  )
+  const myUploaded = uploadedPapers.filter((p) => p.uploaderId === CURRENT_USER_ID)
+  const all = [...myStatic, ...myUploaded].filter((p) => !deletedIds.includes(p.id))
   return delay({
     privatePapers: all.filter((p) => p.visibility === 'private'),
     sharedPapers: all.filter((p) => p.visibility === 'shared'),
   })
 }
 
-/** 收藏的论文（仅收藏共享论文） */
+/** 收藏的论文（仅收藏共享论文；下架/删除/未过审的论文自动隐藏） */
 export async function getFavoritePapers(): Promise<Paper[]> {
   const favIds = userData.getFavoritePaperIds()
-  const list = sharedPapers.filter((p) => favIds.includes(p.id)).map(mergePaper)
+  const pool = [...sharedPapers, ...pendingPapers, ...uploadedPapers]
+    .filter((p) => !deletedIds.includes(p.id))
+    .map(mergePaper)
+    .filter((p) => p.visibility === 'shared' && p.reviewStatus === 'approved')
+  const list = pool.filter((p) => favIds.includes(p.id))
   return delay(list)
 }
 
-/** 详情页统一取论文：我的论文或共享库（approved） */
+/** 详情页统一取论文：我的论文，或共享库中审核通过的论文 */
 export async function getPaperForDetail(id: number): Promise<Paper | null> {
-  const mine = [...sharedPapers, ...privatePapers, ...uploadedPapers]
+  const pool = [...sharedPapers, ...privatePapers, ...pendingPapers, ...uploadedPapers]
     .filter((p) => !deletedIds.includes(p.id))
     .map(mergePaper)
-  const own = mine.find(
-    (p) => p.id === id && p.uploaderId === CURRENT_USER_ID,
-  )
+  const own = pool.find((p) => p.id === id && p.uploaderId === CURRENT_USER_ID)
   if (own) return delay(own)
-  const shared = sharedPapers.find(
-    (p) => p.id === id && p.reviewStatus === 'approved',
+  const shared = pool.find(
+    (p) => p.id === id && p.visibility === 'shared' && p.reviewStatus === 'approved',
   )
-  return delay(shared ? mergePaper(shared) : null)
+  return delay(shared ?? null)
 }
 
 /* ---------------- 编辑 / 删除 / 状态流转 ---------------- */
@@ -95,13 +94,8 @@ export interface PaperEditPayload {
   keywords?: string[]
 }
 
-export async function updatePaper(
-  id: number,
-  patch: PaperEditPayload,
-): Promise<Paper | null> {
-  const source = [...sharedPapers, ...privatePapers, ...uploadedPapers].find(
-    (p) => p.id === id,
-  )
+export async function updatePaper(id: number, patch: PaperEditPayload): Promise<Paper | null> {
+  const source = [...sharedPapers, ...privatePapers, ...uploadedPapers].find((p) => p.id === id)
   if (!source) return delay(null)
   overlay[id] = { ...(overlay[id] ?? {}), ...patch }
   saveJSON(OVERLAY_KEY, overlay)
@@ -109,9 +103,7 @@ export async function updatePaper(
 }
 
 export async function deleteMyPaper(id: number): Promise<boolean> {
-  const source = [...sharedPapers, ...privatePapers, ...uploadedPapers].find(
-    (p) => p.id === id,
-  )
+  const source = [...sharedPapers, ...privatePapers, ...uploadedPapers].find((p) => p.id === id)
   if (!source || source.uploaderId !== CURRENT_USER_ID) return delay(false)
   deletedIds.push(id)
   saveJSON(DELETED_KEY, deletedIds)
@@ -119,10 +111,7 @@ export async function deleteMyPaper(id: number): Promise<boolean> {
 }
 
 /** 审核状态流转：取消共享 approved→offline；重新提交 rejected→pending */
-export async function changeReviewStatus(
-  id: number,
-  status: ReviewStatus,
-): Promise<Paper | null> {
+export async function changeReviewStatus(id: number, status: ReviewStatus): Promise<Paper | null> {
   return updatePaper(id, { reviewStatus: status } as PaperOverlay)
 }
 
@@ -135,9 +124,7 @@ export interface UploadPayload extends PaperEditPayload {
   pageCount: number
 }
 
-let nextUploadedId = uploadedPapers.length
-  ? Math.max(...uploadedPapers.map((p) => p.id)) + 1
-  : 4001
+let nextUploadedId = uploadedPapers.length ? Math.max(...uploadedPapers.map((p) => p.id)) + 1 : 4001
 
 export async function submitPaper(payload: UploadPayload): Promise<Paper> {
   const paper: Paper = {
@@ -157,9 +144,7 @@ export async function submitPaper(payload: UploadPayload): Promise<Paper> {
     downloads: 0,
     fileSizeMB: payload.fileSizeMB,
     pageCount: payload.pageCount,
-    ...(payload.visibility === 'shared'
-      ? { reviewStatus: 'pending' as ReviewStatus }
-      : {}),
+    ...(payload.visibility === 'shared' ? { reviewStatus: 'pending' as ReviewStatus } : {}),
     /* 记录文件名（模拟文件指纹），供文件级查重比对 */
     ...(payload.fileName ? { fileName: payload.fileName } : {}),
   }
@@ -187,9 +172,7 @@ export async function checkDuplicate(input: {
   title?: string
   fileName?: string
 }): Promise<DuplicateCheckResult> {
-  const pool = [...sharedPapers, ...uploadedPapers].filter(
-    (p) => !deletedIds.includes(p.id),
-  )
+  const pool = [...sharedPapers, ...uploadedPapers].filter((p) => !deletedIds.includes(p.id))
   const doi = input.doi?.trim()
   if (doi) {
     const hit = pool.find((p) => p.doi && p.doi === doi)
@@ -202,10 +185,7 @@ export async function checkDuplicate(input: {
     }
   }
   if (input.fileName) {
-    const hit = pool.find(
-      (p) =>
-        (p as Paper & { fileName?: string }).fileName === input.fileName,
-    )
+    const hit = pool.find((p) => (p as Paper & { fileName?: string }).fileName === input.fileName)
     if (hit) {
       return delay({
         level: 'file',

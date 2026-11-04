@@ -37,7 +37,7 @@ onMounted(fetchRecords)
 
       <div v-if="loading" v-loading="true" class="table-loading" />
 
-      <el-table v-else :data="records" style="width: 100%">
+      <el-table v-else :data="records" empty-text="暂无符合条件的审核记录" style="width: 100%">
         <el-table-column label="论文标题" min-width="260" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="paper-title">{{ row.paperTitle }}</span>
@@ -48,7 +48,11 @@ onMounted(fetchRecords)
         </el-table-column>
         <el-table-column label="审核动作" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.action === 'approved' ? 'success' : 'danger'" size="small" effect="light">
+            <el-tag
+              :type="row.action === 'approved' ? 'success' : 'danger'"
+              size="small"
+              effect="light"
+            >
               {{ row.action === 'approved' ? '通过' : '驳回' }}
             </el-tag>
           </template>

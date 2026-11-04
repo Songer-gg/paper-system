@@ -36,17 +36,17 @@ interface UserOverlay {
   status?: UserStatus
 }
 
-let userOverlay = loadJSON<Record<number, UserOverlay>>(USER_OVERLAY_KEY, {})
-let passwordResets = loadJSON<number[]>(PASSWORD_RESET_KEY, [])
-let dynamicReviewRecords = loadJSON<ReviewRecord[]>(REVIEW_RECORD_KEY, [])
-let duplicateOverlay = loadJSON<
+const userOverlay = loadJSON<Record<number, UserOverlay>>(USER_OVERLAY_KEY, {})
+const passwordResets = loadJSON<number[]>(PASSWORD_RESET_KEY, [])
+const dynamicReviewRecords = loadJSON<ReviewRecord[]>(REVIEW_RECORD_KEY, [])
+const duplicateOverlay = loadJSON<
   Record<number, { status: DuplicatePair['status']; handledAt: string; handlerNote?: string }>
 >(DUPLICATE_OVERLAY_KEY, {})
-let dynamicDuplicateRecords = loadJSON<DuplicateRecord[]>(DUPLICATE_RECORD_KEY, [])
-let reportOverlay = loadJSON<
+const dynamicDuplicateRecords = loadJSON<DuplicateRecord[]>(DUPLICATE_RECORD_KEY, [])
+const reportOverlay = loadJSON<
   Record<number, { status: 'resolved'; result: string; handledAt: string }>
 >(REPORT_OVERLAY_KEY, {})
-let dynamicLogs = loadJSON<OperationLog[]>(LOG_KEY, [])
+const dynamicLogs = loadJSON<OperationLog[]>(LOG_KEY, [])
 
 function delay<T>(value: T, ms = 120): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
@@ -60,7 +60,7 @@ function now(): string {
 
 function appendLog(action: string, target: string) {
   dynamicLogs.unshift({
-    id: 6000 + Date.now() % 100000,
+    id: 6000 + (Date.now() % 100000),
     userName: '平台管理员',
     action,
     target,
@@ -201,9 +201,7 @@ export async function getSharedPapers(query: PaperQuery): Promise<Paper[]> {
   const uploader = query.uploader.trim().toLowerCase()
   if (uploader) {
     list = list.filter((p) =>
-      (mockUsers.find((u) => u.id === p.uploaderId)?.name ?? '')
-        .toLowerCase()
-        .includes(uploader),
+      (mockUsers.find((u) => u.id === p.uploaderId)?.name ?? '').toLowerCase().includes(uploader),
     )
   }
   if (query.categoryId) {
@@ -272,7 +270,7 @@ async function review(paperId: number, action: 'approved' | 'rejected', comment:
     reviewComment: action === 'rejected' ? comment : undefined,
   })
   const record: ReviewRecord = {
-    id: 8000 + Date.now() % 100000,
+    id: 8000 + (Date.now() % 100000),
     paperId,
     paperTitle: p.title,
     uploaderId: p.uploaderId,
@@ -295,7 +293,9 @@ export async function rejectPaper(paperId: number, comment: string): Promise<boo
   return review(paperId, 'rejected', comment)
 }
 
-export async function getReviewRecords(action: 'all' | 'approved' | 'rejected'): Promise<ReviewRecord[]> {
+export async function getReviewRecords(
+  action: 'all' | 'approved' | 'rejected',
+): Promise<ReviewRecord[]> {
   const list = [...dynamicReviewRecords, ...mockReviewRecords].sort((a, b) =>
     b.reviewedAt.localeCompare(a.reviewedAt),
   )
@@ -304,13 +304,21 @@ export async function getReviewRecords(action: 'all' | 'approved' | 'rejected'):
 
 /* ---------------- 重复论文管理 ---------------- */
 
-export async function getDuplicatePairs(status: 'all' | 'pending' | 'resolved'): Promise<DuplicatePair[]> {
+export async function getDuplicatePairs(
+  status: 'all' | 'pending' | 'resolved',
+): Promise<DuplicatePair[]> {
   const list = mockDuplicatePairs.map((p) => {
     const ov = duplicateOverlay[p.id]
-    return ov ? { ...p, status: ov.status, handledAt: ov.handledAt, handlerNote: ov.handlerNote } : p
+    return ov
+      ? { ...p, status: ov.status, handledAt: ov.handledAt, handlerNote: ov.handlerNote }
+      : p
   })
   const filtered =
-    status === 'all' ? list : status === 'pending' ? list.filter((p) => p.status === 'pending') : list.filter((p) => p.status !== 'pending')
+    status === 'all'
+      ? list
+      : status === 'pending'
+        ? list.filter((p) => p.status === 'pending')
+        : list.filter((p) => p.status !== 'pending')
   return delay(filtered, 0)
 }
 
@@ -327,10 +335,11 @@ async function handleDuplicate(
   const newPaper = findPaper(pair.newPaperId)
   if (action === 'duplicate') {
     /* 确认重复：驳回新论文 */
-    if (newPaper) patchPaper(pair.newPaperId, {
-      reviewStatus: 'rejected',
-      reviewComment: `与已有共享资源《${findPaper(pair.originalPaperId)?.title ?? ''}》重复，禁止重复创建共享资源。`,
-    })
+    if (newPaper)
+      patchPaper(pair.newPaperId, {
+        reviewStatus: 'rejected',
+        reviewComment: `与已有共享资源《${findPaper(pair.originalPaperId)?.title ?? ''}》重复，禁止重复创建共享资源。`,
+      })
   } else if (action === 'distinct') {
     /* 确认不同论文：新论文维持原审核流程 */
     void newPaper
@@ -343,7 +352,7 @@ async function handleDuplicate(
   }
 
   const record: DuplicateRecord = {
-    id: 7000 + Date.now() % 100000,
+    id: 7000 + (Date.now() % 100000),
     pairId,
     paperTitle: newPaper?.title ?? `疑似重复对 #${pairId}`,
     action,

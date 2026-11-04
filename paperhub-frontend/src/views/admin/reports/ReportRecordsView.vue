@@ -25,6 +25,10 @@ onMounted(fetchRecords)
 function titleOf(id: number): string {
   return paperMap.value.get(id)?.title ?? `论文 #${id}`
 }
+
+function typeLabel(t: ReportItem['type']): string {
+  return reportTypeLabels[t]
+}
 </script>
 
 <template>
@@ -44,7 +48,7 @@ function titleOf(id: number): string {
           <template #default="{ row }">#{{ row.id }}</template>
         </el-table-column>
         <el-table-column label="举报类型" width="140">
-          <template #default="{ row }">{{ reportTypeLabels[row.type] }}</template>
+          <template #default="{ row }">{{ typeLabel(row.type) }}</template>
         </el-table-column>
         <el-table-column label="被举报论文" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">{{ titleOf(row.paperId) }}</template>

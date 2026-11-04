@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, TreeInstance } from 'element-plus'
+import type { TreeInstance } from 'element-plus'
 import type { Category, Paper } from '@/types/paper'
 import * as knowledge from '@/services/knowledgeService'
 import { getTag } from '@/mocks/tags'
@@ -46,8 +46,14 @@ function handleNodeClick(data: Category) {
 onMounted(fetchCategories)
 
 /* 树数据：根 → 子 */
-const treeData = computed(() => {
-  const build = (parentId: number | null): any[] =>
+interface TreeItem {
+  id: number
+  label: string
+  parentId: number | null
+  children: TreeItem[]
+}
+const treeData = computed<TreeItem[]>(() => {
+  const build = (parentId: number | null): TreeItem[] =>
     categories.value
       .filter((c) => c.parentId === parentId)
       .map((c) => ({
@@ -61,14 +67,12 @@ const treeData = computed(() => {
 
 /* 名称模糊搜索（规划书 5.8） */
 watch(keyword, (val) => treeRef.value?.filter(val))
-function filterNode(value: string, data: any): boolean {
+function filterNode(value: string, data: TreeItem): boolean {
   if (!value) return true
-  return String(data.label).toLowerCase().includes(value.toLowerCase())
+  return data.label.toLowerCase().includes(value.toLowerCase())
 }
 
-const selectedCategory = computed(() =>
-  categories.value.find((c) => c.id === selectedId.value),
-)
+const selectedCategory = computed(() => categories.value.find((c) => c.id === selectedId.value))
 
 function goDetail(id: number) {
   router.push(`/user/papers/${id}`)
@@ -78,18 +82,9 @@ function goDetail(id: number) {
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'createChild' | 'rename'>('create')
 const dialogTarget = ref<Category | null>(null)
-const formRef = ref<FormInstance>()
 const form = reactive({
   name: '',
   parentId: null as number | null,
-})
-
-const parentOptions = computed(() => {
-  const build = (parentId: number | null): any[] =>
-    categories.value
-      .filter((c) => c.parentId === parentId)
-      .map((c) => ({ value: c.id, label: c.name, children: build(c.id) }))
-  return build(null)
 })
 
 const dialogTitle = computed(
@@ -169,18 +164,13 @@ async function handleDelete(cat: Category) {
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">分类管理</h2>
-        <p class="ph-page-desc">
-          树形分类体系，支持新建子分类、重命名与删除；点击分类查看关联论文
-        </p>
+        <p class="ph-page-desc">树形分类体系，支持新建子分类、重命名与删除；点击分类查看关联论文</p>
       </div>
       <div class="header-actions">
-        <el-input
-          v-model="keyword"
-          placeholder="模糊搜索分类名称"
-          clearable
-          style="width: 220px"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
+        <el-input v-model="keyword" placeholder="模糊搜索分类名称" clearable style="width: 220px">
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-button type="primary" :icon="'Plus'" @click="openCreate">新建分类</el-button>
       </div>
@@ -248,12 +238,7 @@ async function handleDelete(cat: Category) {
           </div>
           <div v-if="papersLoading" v-loading="true" class="papers-loading" />
           <template v-else-if="categoryPapers.length">
-            <div
-              v-for="p in categoryPapers"
-              :key="p.id"
-              class="paper-row"
-              @click="goDetail(p.id)"
-            >
+            <div v-for="p in categoryPapers" :key="p.id" class="paper-row" @click="goDetail(p.id)">
               <div class="paper-row-main">
                 <div class="paper-title ph-ellipsis">{{ p.title }}</div>
                 <div class="paper-meta">

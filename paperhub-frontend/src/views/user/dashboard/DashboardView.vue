@@ -130,7 +130,12 @@ const yearChartOption = computed<EChartsOption>(() => ({
 /* 论文分类分布（环形图） */
 const categoryChartOption = computed<EChartsOption>(() => ({
   tooltip: { trigger: 'item', formatter: '{b}: {c} 篇（{d}%）' },
-  legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { color: '#6B7280', fontSize: 12 } },
+  legend: {
+    bottom: 0,
+    icon: 'circle',
+    itemWidth: 8,
+    textStyle: { color: '#6B7280', fontSize: 12 },
+  },
   color: ['#2563EB', '#7C3AED', '#0891B2', '#D97706', '#16A34A', '#DB2777', '#475569'],
   series: [
     {
@@ -152,9 +157,7 @@ const readingColors: Record<ReadingStatus, string> = {
   unread: '#9CA3AF',
   paused: '#D97706',
 }
-const readingTotal = computed(
-  () => data.value?.readingDist.reduce((s, r) => s + r.count, 0) ?? 0,
-)
+const readingTotal = computed(() => data.value?.readingDist.reduce((s, r) => s + r.count, 0) ?? 0)
 
 function paperCategoryName(id: number): string {
   return getCategory(id)?.name ?? '未分类'
@@ -177,7 +180,11 @@ function goPaper(id: number) {
         <el-button :icon="'TrendCharts'" @click="router.push('/user/statistics')">
           数据统计
         </el-button>
-        <el-button type="primary" :icon="'UploadFilled'" @click="router.push('/user/papers/upload')">
+        <el-button
+          type="primary"
+          :icon="'UploadFilled'"
+          @click="router.push('/user/papers/upload')"
+        >
           上传论文
         </el-button>
       </div>
@@ -192,10 +199,7 @@ function goPaper(id: number) {
           class="ph-card stat-card"
           @click="router.push(card.path)"
         >
-          <div
-            class="stat-icon"
-            :style="{ background: card.iconBg, color: card.iconColor }"
-          >
+          <div class="stat-icon" :style="{ background: card.iconBg, color: card.iconColor }">
             <el-icon :size="20"><component :is="card.icon" /></el-icon>
           </div>
           <div class="stat-info">
@@ -224,16 +228,9 @@ function goPaper(id: number) {
           <div class="ph-card chart-card">
             <div class="ph-section-title">阅读状态分布</div>
             <div class="reading-list">
-              <div
-                v-for="item in data.readingDist"
-                :key="item.status"
-                class="reading-item"
-              >
+              <div v-for="item in data.readingDist" :key="item.status" class="reading-item">
                 <div class="reading-item-head">
-                  <span
-                    class="reading-dot"
-                    :style="{ background: readingColors[item.status] }"
-                  />
+                  <span class="reading-dot" :style="{ background: readingColors[item.status] }" />
                   <span class="reading-label">{{ item.label }}</span>
                   <span class="reading-count">{{ item.count }} 篇</span>
                 </div>
@@ -374,7 +371,9 @@ function goPaper(id: number) {
   gap: 14px;
   padding: 18px;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 .stat-card:hover {
   transform: translateY(-3px);

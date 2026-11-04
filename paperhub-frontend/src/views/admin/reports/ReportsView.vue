@@ -31,6 +31,10 @@ function titleOf(id: number): string {
   return paperMap.value.get(id)?.title ?? `论文 #${id}`
 }
 
+function typeLabel(t: ReportItem['type']): string {
+  return reportTypeLabels[t]
+}
+
 /* ---------------- 处理举报弹窗 ---------------- */
 const dialog = ref(false)
 const current = ref<ReportItem | null>(null)
@@ -92,11 +96,13 @@ function goRecords() {
           <el-table-column label="举报类型" width="140">
             <template #default="{ row }">
               <el-tag
-                :type="row.type === 'copyright' ? 'danger' : row.type === 'content' ? 'warning' : 'info'"
+                :type="
+                  row.type === 'copyright' ? 'danger' : row.type === 'content' ? 'warning' : 'info'
+                "
                 size="small"
                 effect="light"
               >
-                {{ reportTypeLabels[row.type] }}
+                {{ typeLabel(row.type) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -163,9 +169,7 @@ function goRecords() {
             :rows="3"
             placeholder="填写处理结果，如：核实举报属实 / 举报不成立等"
           />
-          <el-checkbox v-model="offlineToo">
-            同时下架被举报论文（从共享论文库移除）
-          </el-checkbox>
+          <el-checkbox v-model="offlineToo"> 同时下架被举报论文（从共享论文库移除） </el-checkbox>
         </div>
       </template>
       <template #footer>

@@ -23,9 +23,7 @@ interface MenuGroup {
 /* 用户端导航（对应规划书 5.1 节） */
 const menuGroups: MenuGroup[] = [
   {
-    items: [
-      { label: '首页', icon: 'HomeFilled', path: '/user/dashboard' },
-    ],
+    items: [{ label: '首页', icon: 'HomeFilled', path: '/user/dashboard' }],
   },
   {
     label: '论文中心',
@@ -54,9 +52,7 @@ const menuGroups: MenuGroup[] = [
   },
 ]
 
-const unreadCount = computed(
-  () => mockNotifications.filter((n) => !n.read).length,
-)
+const unreadCount = computed(() => mockNotifications.filter((n) => !n.read).length)
 
 const searchKeyword = ref('')
 function handleSearch() {
@@ -307,7 +303,7 @@ async function handleCommand(command: string | number | object) {
   border-bottom: 1px solid var(--ph-border);
   display: flex;
   align-items: center;
-  justify-content:space-between;
+  justify-content: space-between;
   padding: 0 24px;
   gap: 16px;
 }

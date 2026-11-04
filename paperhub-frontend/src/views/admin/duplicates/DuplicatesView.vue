@@ -45,6 +45,14 @@ const statusClass: Record<DuplicatePair['status'], string> = {
   linked: 'ph-status--primary',
 }
 
+function statusLabel(s: DuplicatePair['status']): string {
+  return statusLabels[s]
+}
+
+function statusCls(s: DuplicatePair['status']): string {
+  return statusClass[s]
+}
+
 async function handlePair(pair: DuplicatePair, action: 'duplicate' | 'distinct' | 'linked') {
   const actionLabels = {
     duplicate: '确认为重复',
@@ -131,13 +139,18 @@ function goRecords() {
                     <span class="compare-label">DOI 比对</span>
                     <span class="compare-value">{{ pair.doiMatch ? '完全一致' : '不一致' }}</span>
                   </div>
-                  <div class="compare-item" :class="pair.titleSimilarity >= 80 ? 'is-match' : 'is-mid'">
+                  <div
+                    class="compare-item"
+                    :class="pair.titleSimilarity >= 80 ? 'is-match' : 'is-mid'"
+                  >
                     <span class="compare-label">标题相似度</span>
                     <span class="compare-value">{{ pair.titleSimilarity }}%</span>
                   </div>
                   <div class="compare-item" :class="pair.fileHashMatch ? 'is-match' : 'is-diff'">
                     <span class="compare-label">文件哈希</span>
-                    <span class="compare-value">{{ pair.fileHashMatch ? '完全一致' : '不一致' }}</span>
+                    <span class="compare-value">{{
+                      pair.fileHashMatch ? '完全一致' : '不一致'
+                    }}</span>
                   </div>
                 </div>
 
@@ -188,7 +201,9 @@ function goRecords() {
             </el-table-column>
             <el-table-column label="处理结果" width="110">
               <template #default="{ row }">
-                <span class="ph-status" :class="statusClass[row.status]">{{ statusLabels[row.status] }}</span>
+                <span class="ph-status" :class="statusCls(row.status)">{{
+                  statusLabel(row.status)
+                }}</span>
               </template>
             </el-table-column>
             <el-table-column label="处理说明" min-width="160" show-overflow-tooltip>
@@ -256,7 +271,7 @@ function goRecords() {
 }
 .paper-box--new {
   border: 1px dashed var(--ph-warning);
-  background: #FFFBEB;
+  background: #fffbeb;
 }
 .paper-box-tag {
   font-size: 11.5px;
@@ -296,16 +311,16 @@ function goRecords() {
   background: #fff;
 }
 .compare-item.is-match {
-  border-color: #FCA5A5;
-  background: #FEF2F2;
+  border-color: #fca5a5;
+  background: #fef2f2;
 }
 .compare-item.is-mid {
-  border-color: #FCD34D;
-  background: #FFFBEB;
+  border-color: #fcd34d;
+  background: #fffbeb;
 }
 .compare-item.is-diff {
   border-color: var(--ph-border);
-  background: #F0FDF4;
+  background: #f0fdf4;
 }
 .compare-label {
   display: block;

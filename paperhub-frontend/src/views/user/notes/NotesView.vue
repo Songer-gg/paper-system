@@ -15,10 +15,7 @@ const paperMap = ref<Map<number, Paper>>(new Map())
 
 async function fetchNotes() {
   loading.value = true
-  const [list, papers] = await Promise.all([
-    userData.getNotes(),
-    getVisiblePapers(),
-  ])
+  const [list, papers] = await Promise.all([userData.getNotes(), getVisiblePapers()])
   notes.value = list
   paperMap.value = new Map(papers.map((p) => [p.id, p]))
   if (selectedId.value && !list.some((n) => n.id === selectedId.value)) {
@@ -75,9 +72,7 @@ function renderMarkdown(src: string): string {
   const out: string[] = []
   let listOpen = false
   const inline = (s: string) =>
-    s
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
+    s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>')
   const closeList = () => {
     if (listOpen) {
       out.push('</ul>')
@@ -178,11 +173,11 @@ async function saveDialog() {
 
 async function handleDelete(note: Note) {
   try {
-    await ElMessageBox.confirm(
-      `确定删除笔记「${note.title}」吗？删除后不可恢复。`,
-      '删除笔记',
-      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' },
-    )
+    await ElMessageBox.confirm(`确定删除笔记「${note.title}」吗？删除后不可恢复。`, '删除笔记', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
     await userData.deleteNote(note.id)
     ElMessage.success('笔记已删除')
     if (selectedId.value === note.id) selectedId.value = null
@@ -216,7 +211,9 @@ function fmtTime(t: string): string {
       <div class="ph-card list-card">
         <div class="list-toolbar">
           <el-input v-model="keyword" placeholder="搜索笔记 / 论文标题" clearable>
-            <template #prefix><el-icon><Search /></el-icon></template>
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
           </el-input>
           <el-radio-group v-model="sortBy" size="small">
             <el-radio-button value="updated">最近更新</el-radio-button>
@@ -252,11 +249,7 @@ function fmtTime(t: string): string {
               <div class="preview-title">{{ selectedNote.title }}</div>
               <div class="preview-meta">
                 关联论文：
-                <el-link
-                  type="primary"
-                  underline="never"
-                  @click="goPaper(selectedNote.paperId)"
-                >
+                <el-link type="primary" underline="never" @click="goPaper(selectedNote.paperId)">
                   {{ selectedPaper?.title ?? '未知论文' }}
                 </el-link>
                 <span class="preview-time">
@@ -267,7 +260,12 @@ function fmtTime(t: string): string {
             </div>
             <div class="preview-actions">
               <el-button text :icon="'EditPen'" @click="openEdit(selectedNote)">编辑</el-button>
-              <el-button text :icon="'Delete'" class="danger-btn" @click="handleDelete(selectedNote)">
+              <el-button
+                text
+                :icon="'Delete'"
+                class="danger-btn"
+                @click="handleDelete(selectedNote)"
+              >
                 删除
               </el-button>
             </div>
@@ -297,12 +295,7 @@ function fmtTime(t: string): string {
             placeholder="搜索并选择关联论文"
             style="width: 100%"
           >
-            <el-option
-              v-for="p in papers"
-              :key="p.id"
-              :value="p.id"
-              :label="p.title"
-            />
+            <el-option v-for="p in papers" :key="p.id" :value="p.id" :label="p.title" />
           </el-select>
         </el-form-item>
         <el-form-item label="笔记内容（支持 Markdown）" required>

@@ -29,7 +29,13 @@ async function fetchAll() {
 
 /** 拉取全平台共享论文（含各审核状态），供标签计数 */
 async function fetchSharedPapers(): Promise<Paper[]> {
-  return admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' })
+  return admin.getSharedPapers({
+    title: '',
+    doi: '',
+    uploader: '',
+    categoryId: null,
+    status: 'all',
+  })
 }
 onMounted(fetchAll)
 
@@ -39,7 +45,7 @@ const filteredTags = computed(() => {
 })
 
 const selectedTag = computed(() =>
-  selectedId.value !== null ? tags.value.find((t) => t.id === selectedId.value) ?? null : null,
+  selectedId.value !== null ? (tags.value.find((t) => t.id === selectedId.value) ?? null) : null,
 )
 const selectedPapers = ref<Paper[]>([])
 
@@ -51,7 +57,16 @@ async function selectTag(t: Tag) {
 }
 
 /* ---------------- 新建 / 编辑 / 删除 ---------------- */
-const palette = ['#2563EB', '#7C3AED', '#0891B2', '#D97706', '#DB2777', '#16A34A', '#DC2626', '#475569']
+const palette = [
+  '#2563EB',
+  '#7C3AED',
+  '#0891B2',
+  '#D97706',
+  '#DB2777',
+  '#16A34A',
+  '#DC2626',
+  '#475569',
+]
 const dialog = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const tagName = ref('')
@@ -133,7 +148,9 @@ async function removeTag(t: Tag) {
       <!-- 左：标签列表 -->
       <div class="ph-card tags-card">
         <el-input v-model="keyword" placeholder="搜索标签" clearable class="tag-search">
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <div class="tag-grid">
           <div
@@ -162,7 +179,11 @@ async function removeTag(t: Tag) {
             <span class="tag-dot" :style="{ background: selectedTag.color }" />
             {{ selectedTag.name }}（{{ selectedPapers.length }} 篇）
           </h3>
-          <el-table v-if="selectedPapers.length" :data="selectedPapers.slice(0, 30)" style="width: 100%">
+          <el-table
+            v-if="selectedPapers.length"
+            :data="selectedPapers.slice(0, 30)"
+            style="width: 100%"
+          >
             <el-table-column label="论文标题" min-width="240" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="paper-title">{{ row.title }}</span>

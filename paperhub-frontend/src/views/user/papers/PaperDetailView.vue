@@ -6,7 +6,6 @@ import type { Paper, ReadingStatus } from '@/types/paper'
 import { readingStatusLabels, reviewStatusLabels } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
 import * as userData from '@/services/userDataService'
-import { getCategory } from '@/mocks/categories'
 import { getTag } from '@/mocks/tags'
 import { getUserName as getUploaderName } from '@/mocks/users'
 import TagChip from '@/components/common/TagChip.vue'
@@ -41,15 +40,6 @@ async function fetchAll() {
 onMounted(fetchAll)
 
 /* ---------------- 展示辅助 ---------------- */
-function categoryPath(id: number): string {
-  let cat = getCategory(id)
-  const path: string[] = []
-  while (cat) {
-    path.unshift(cat.name)
-    cat = cat.parentId !== null ? getCategory(cat.parentId) : undefined
-  }
-  return path.join(' / ')
-}
 
 const metaItems = computed(() => {
   const p = paper.value
@@ -141,12 +131,7 @@ function goNotes() {
     <template v-else-if="paper">
       <div class="ph-page-header">
         <div>
-          <el-button
-            text
-            :icon="'ArrowLeft'"
-            class="back-btn"
-            @click="router.back()"
-          >
+          <el-button text :icon="'ArrowLeft'" class="back-btn" @click="router.back()">
             返回
           </el-button>
           <h2 class="ph-page-title">{{ paper.title }}</h2>
@@ -179,12 +164,14 @@ function goNotes() {
               <span
                 v-if="paper.reviewStatus"
                 class="ph-status"
-                :class="{
-                  approved: 'ph-status--success',
-                  pending: 'ph-status--warning',
-                  rejected: 'ph-status--danger',
-                  offline: 'ph-status--info',
-                }[paper.reviewStatus]"
+                :class="
+                  {
+                    approved: 'ph-status--success',
+                    pending: 'ph-status--warning',
+                    rejected: 'ph-status--danger',
+                    offline: 'ph-status--info',
+                  }[paper.reviewStatus]
+                "
               >
                 {{ reviewStatusLabels[paper.reviewStatus] }}
               </span>
@@ -218,12 +205,7 @@ function goNotes() {
 
             <template v-if="paper.link">
               <div class="detail-section-title">原文链接</div>
-              <el-link
-                type="primary"
-                :href="paper.link"
-                target="_blank"
-                underline="never"
-              >
+              <el-link type="primary" :href="paper.link" target="_blank" underline="never">
                 {{ paper.link }}
               </el-link>
             </template>
@@ -261,12 +243,20 @@ function goNotes() {
               </el-select>
             </div>
             <p class="reading-tip">
-              {{ hasReadingRecord
-                ? '状态变更会同步到「阅读管理」页面'
-                : '选择状态后自动加入「阅读管理」' }}
+              {{
+                hasReadingRecord
+                  ? '状态变更会同步到「阅读管理」页面'
+                  : '选择状态后自动加入「阅读管理」'
+              }}
             </p>
             <el-divider />
-            <el-button type="primary" plain :icon="'EditPen'" class="aside-btn" @click="openNoteDialog">
+            <el-button
+              type="primary"
+              plain
+              :icon="'EditPen'"
+              class="aside-btn"
+              @click="openNoteDialog"
+            >
               添加阅读笔记
             </el-button>
             <el-button :icon="'Notebook'" class="aside-btn" @click="goNotes">

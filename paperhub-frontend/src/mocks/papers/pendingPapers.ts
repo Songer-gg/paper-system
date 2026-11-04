@@ -6,7 +6,8 @@ export const pendingPapers: Paper[] = [
     id: 3001,
     title: '视觉-语言模型驱动的机器人操作技能学习',
     authors: ['王牧之'],
-    abstract: '利用视觉-语言模型的语义理解能力生成可执行的操作技能表征，在仿真与真实双平台上验证技能迁移效果。',
+    abstract:
+      '利用视觉-语言模型的语义理解能力生成可执行的操作技能表征，在仿真与真实双平台上验证技能迁移效果。',
     doi: '10.1109/tro.2026.03456',
     journal: 'IEEE Transactions on Robotics',
     year: 2026,
@@ -25,7 +26,8 @@ export const pendingPapers: Paper[] = [
     id: 3002,
     title: '基于大语言模型的代码缺陷自动修复方法',
     authors: ['陈思羽'],
-    abstract: '提出结合静态分析的提示构造策略，引导大语言模型定位并修复真实项目的代码缺陷，在 Defects4J 上修复率提升 12%。',
+    abstract:
+      '提出结合静态分析的提示构造策略，引导大语言模型定位并修复真实项目的代码缺陷，在 Defects4J 上修复率提升 12%。',
     doi: '10.1145/icse.2026.23456',
     journal: 'Proceedings of ICSE',
     year: 2026,
@@ -63,7 +65,8 @@ export const pendingPapers: Paper[] = [
     id: 3004,
     title: '工业时序数据的异常检测基准数据集构建',
     authors: ['周子谦'],
-    abstract: '构建覆盖六类工业设备、含标注异常区间的公开时序基准数据集，并给出统一的评测协议与基线结果。',
+    abstract:
+      '构建覆盖六类工业设备、含标注异常区间的公开时序基准数据集，并给出统一的评测协议与基线结果。',
     doi: '10.5555/nips.2026datasets.02',
     journal: 'NeurIPS Datasets and Benchmarks',
     year: 2026,
@@ -82,7 +85,8 @@ export const pendingPapers: Paper[] = [
     id: 3005,
     title: '基于深度强化学习的机械臂轨迹优化',
     authors: ['沈亦舟'],
-    abstract: '以能耗与时长的加权目标训练深度强化学习策略，生成平滑且低冲击的机械臂点到点运动轨迹。',
+    abstract:
+      '以能耗与时长的加权目标训练深度强化学习策略，生成平滑且低冲击的机械臂点到点运动轨迹。',
     doi: '10.1109/iros.2026.07890',
     journal: 'IEEE/RSJ International Conference on Intelligent Robots and Systems',
     year: 2026,

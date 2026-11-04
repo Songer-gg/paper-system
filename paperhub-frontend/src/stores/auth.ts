@@ -7,8 +7,7 @@ const STORAGE_KEY = 'paperhub_auth'
 
 function readStoredUser(): LoginUser | null {
   try {
-    const raw =
-      localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY)
     return raw ? (JSON.parse(raw) as LoginUser) : null
   } catch {
     return null

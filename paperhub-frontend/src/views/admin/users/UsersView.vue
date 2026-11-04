@@ -100,7 +100,9 @@ function goDetail(id: number) {
           style="width: 200px"
           @change="fetchUsers"
         >
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-select
           v-model="query.status"
@@ -129,7 +131,7 @@ function goDetail(id: number) {
       <div v-if="loading" v-loading="true" class="table-loading" />
 
       <template v-else>
-        <el-table :data="users" style="width: 100%">
+        <el-table :data="users" empty-text="暂无符合条件的用户" style="width: 100%">
           <el-table-column label="用户" min-width="200">
             <template #default="{ row }">
               <div class="user-cell">

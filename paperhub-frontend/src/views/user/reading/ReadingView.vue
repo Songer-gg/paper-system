@@ -100,13 +100,10 @@ function goShared() {
             <span class="tab-count">{{ t.n }}</span>
           </button>
         </div>
-        <el-input
-          v-model="keyword"
-          placeholder="搜索论文标题"
-          clearable
-          style="width: 240px"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
+        <el-input v-model="keyword" placeholder="搜索论文标题" clearable style="width: 240px">
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
       </div>
 

@@ -464,8 +464,7 @@ export const sharedPapers: Paper[] = [
     fileSizeMB: 3.9,
     pageCount: 15,
     reviewStatus: 'rejected',
-    reviewComment:
-      '摘要与正文内容不匹配，且关键词信息不完整，请核实元数据后重新提交。',
+    reviewComment: '摘要与正文内容不匹配，且关键词信息不完整，请核实元数据后重新提交。',
   },
   {
     id: 1024,

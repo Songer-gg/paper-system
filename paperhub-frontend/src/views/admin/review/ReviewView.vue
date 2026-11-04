@@ -28,6 +28,10 @@ onMounted(fetchPapers)
 
 const currentList = computed(() => groups.value[activeTab.value])
 
+function statusLabel(p: Paper): string {
+  return reviewStatusLabels[p.reviewStatus ?? 'pending']
+}
+
 function pendingDuplicateOf(p: Paper): DuplicatePair | undefined {
   return duplicatePairs.find((d) => d.newPaperId === p.id)
 }
@@ -134,11 +138,17 @@ async function reject() {
           <el-table-column label="状态" width="105">
             <template #default="{ row }">
               <el-tag
-                :type="row.reviewStatus === 'approved' ? 'success' : row.reviewStatus === 'rejected' ? 'danger' : 'warning'"
+                :type="
+                  row.reviewStatus === 'approved'
+                    ? 'success'
+                    : row.reviewStatus === 'rejected'
+                      ? 'danger'
+                      : 'warning'
+                "
                 size="small"
                 effect="light"
               >
-                {{ reviewStatusLabels[row.reviewStatus ?? 'pending'] }}
+                {{ statusLabel(row) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -160,7 +170,11 @@ async function reject() {
             </template>
           </el-table-column>
         </el-table>
-        <el-empty v-else :description="`暂无${activeTab === 'pending' ? '待审核' : activeTab === 'approved' ? '已通过' : '已驳回'}论文`" :image-size="100" />
+        <el-empty
+          v-else
+          :description="`暂无${activeTab === 'pending' ? '待审核' : activeTab === 'approved' ? '已通过' : '已驳回'}论文`"
+          :image-size="100"
+        />
       </template>
     </div>
 

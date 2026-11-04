@@ -78,7 +78,7 @@ onMounted(fetchAll)
 
 const selectedCategory = computed(() =>
   selectedId.value !== null
-    ? categories.value.find((c) => c.id === selectedId.value) ?? null
+    ? (categories.value.find((c) => c.id === selectedId.value) ?? null)
     : null,
 )
 
@@ -99,6 +99,10 @@ const selectedPapers = computed(() => {
 
 function selectNode(node: TreeNode) {
   selectedId.value = node.id
+}
+
+function onNodeClick(data: TreeNode) {
+  selectNode(data)
 }
 
 /* ---------------- 新建 / 重命名 / 删除 ---------------- */
@@ -143,11 +147,13 @@ async function removeCategory(cat: TreeNode) {
   try {
     /* 先收集子树名称用于确认提示（自身 + 全部后代） */
     const collect = (parentId: number): Category[] =>
-      categories.value
-        .filter((c) => c.parentId === parentId)
-        .flatMap((c) => [c, ...collect(c.id)])
+      categories.value.filter((c) => c.parentId === parentId).flatMap((c) => [c, ...collect(c.id)])
     const subtree = [
-      categories.value.find((c) => c.id === cat.id) ?? { id: cat.id, name: cat.name, parentId: null },
+      categories.value.find((c) => c.id === cat.id) ?? {
+        id: cat.id,
+        name: cat.name,
+        parentId: null,
+      },
       ...collect(cat.id),
     ]
     await ElMessageBox.confirm(
@@ -176,7 +182,7 @@ const moveParentId = ref<number | null>(null)
 /** 当前移动操作的目标分类名（显示在弹窗标题，避免误操作歧义） */
 const moveTargetName = computed(() =>
   moveTargetId.value !== null
-    ? categories.value.find((c) => c.id === moveTargetId.value)?.name ?? ''
+    ? (categories.value.find((c) => c.id === moveTargetId.value)?.name ?? '')
     : '',
 )
 
@@ -196,7 +202,9 @@ const moveOptions = computed<Category[]>(() => {
 })
 
 const moveTreeData = computed(() => {
-  const build = (parentId: number | null): { value: number; label: string; children?: unknown[] }[] =>
+  const build = (
+    parentId: number | null,
+  ): { value: number; label: string; children?: unknown[] }[] =>
     moveOptions.value
       .filter((c) => c.parentId === parentId)
       .map((c) => {
@@ -247,7 +255,9 @@ async function submitMove() {
           clearable
           class="tree-search"
         >
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-tree
           :data="filteredTree"
@@ -255,17 +265,21 @@ async function submitMove() {
           default-expand-all
           :expand-on-click-node="false"
           highlight-current
-          @node-click="(data) => selectNode(data as TreeNode)"
+          @node-click="onNodeClick"
         >
           <template #default="{ data }">
             <div class="tree-node">
               <span class="tree-name">{{ data.name }}</span>
               <span class="tree-count">{{ data.count }} 篇</span>
               <span class="tree-actions" @click.stop>
-                <el-button text type="primary" size="small" @click="openCreate(data.id)">子分类</el-button>
+                <el-button text type="primary" size="small" @click="openCreate(data.id)"
+                  >子分类</el-button
+                >
                 <el-button text size="small" @click="openRename(data)">重命名</el-button>
                 <el-button text size="small" @click="openMove(data)">移动</el-button>
-                <el-button text type="danger" size="small" @click="removeCategory(data)">删除</el-button>
+                <el-button text type="danger" size="small" @click="removeCategory(data)"
+                  >删除</el-button
+                >
               </span>
             </div>
           </template>
@@ -278,7 +292,11 @@ async function submitMove() {
           <h3 class="ph-section-title">
             {{ selectedCategory.name }}（{{ selectedPapers.length }} 篇）
           </h3>
-          <el-table v-if="selectedPapers.length" :data="selectedPapers.slice(0, 30)" style="width: 100%">
+          <el-table
+            v-if="selectedPapers.length"
+            :data="selectedPapers.slice(0, 30)"
+            style="width: 100%"
+          >
             <el-table-column label="论文标题" min-width="240" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="paper-title">{{ row.title }}</span>
@@ -291,18 +309,20 @@ async function submitMove() {
             仅展示前 30 篇，共 {{ selectedPapers.length }} 篇
           </div>
         </template>
-        <el-empty
-          v-else
-          description="点击左侧分类查看关联论文"
-          :image-size="100"
-        />
+        <el-empty v-else description="点击左侧分类查看关联论文" :image-size="100" />
       </div>
     </div>
 
     <!-- 新建/重命名弹窗 -->
     <el-dialog
       v-model="dialog"
-      :title="dialogMode === 'create' ? (targetParentId !== null ? '新建子分类' : '新建根分类') : '重命名分类'"
+      :title="
+        dialogMode === 'create'
+          ? targetParentId !== null
+            ? '新建子分类'
+            : '新建根分类'
+          : '重命名分类'
+      "
       width="420px"
     >
       <el-input v-model="dialogName" placeholder="分类名称" maxlength="20" show-word-limit />

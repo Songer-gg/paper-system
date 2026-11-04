@@ -77,6 +77,10 @@ function statusTagType(p: Paper) {
   }
 }
 
+function statusLabel(p: Paper): string {
+  return reviewStatusLabels[p.reviewStatus ?? 'pending']
+}
+
 /* ---------------- 论文操作 ---------------- */
 const drawer = ref(false)
 const current = ref<Paper | null>(null)
@@ -142,7 +146,9 @@ async function deletePaper(p: Paper) {
           style="width: 180px"
           @change="fetchPapers"
         >
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-input
           v-model="query.doi"
@@ -186,7 +192,7 @@ async function deletePaper(p: Paper) {
       <div v-if="loading" v-loading="true" class="table-loading" />
 
       <template v-else>
-        <el-table :data="pagedPapers" style="width: 100%">
+        <el-table :data="pagedPapers" empty-text="暂无符合条件的论文" style="width: 100%">
           <el-table-column label="论文标题" min-width="280" show-overflow-tooltip>
             <template #default="{ row }">
               <el-button text type="primary" class="title-btn" @click="openDetail(row)">
@@ -213,7 +219,7 @@ async function deletePaper(p: Paper) {
           <el-table-column label="状态" width="105">
             <template #default="{ row }">
               <el-tag :type="statusTagType(row)" size="small" effect="light">
-                {{ reviewStatusLabels[row.reviewStatus ?? 'pending'] }}
+                {{ statusLabel(row) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -283,7 +289,7 @@ async function deletePaper(p: Paper) {
             <el-descriptions-item label="下载量">{{ current.downloads }}</el-descriptions-item>
             <el-descriptions-item label="审核状态">
               <el-tag :type="statusTagType(current)" size="small" effect="light">
-                {{ reviewStatusLabels[current.reviewStatus ?? 'pending'] }}
+                {{ statusLabel(current) }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item v-if="current.reviewComment" label="审核意见">

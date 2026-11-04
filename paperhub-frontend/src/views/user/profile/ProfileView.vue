@@ -16,8 +16,7 @@ const profile = ref<MyProfile | null>(null)
 async function fetchProfile(uploadedCount?: number) {
   loading.value = true
   const count =
-    uploadedCount ??
-    JSON.parse(localStorage.getItem('ph_uploaded_papers') ?? '[]').length
+    uploadedCount ?? JSON.parse(localStorage.getItem('ph_uploaded_papers') ?? '[]').length
   profile.value = await profileService.getMyProfile(count)
   loading.value = false
 }

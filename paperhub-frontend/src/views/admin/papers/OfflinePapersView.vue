@@ -39,11 +39,11 @@ async function restorePaper(p: Paper) {
 
 async function deletePaper(p: Paper) {
   try {
-    await ElMessageBox.confirm(
-      `删除《${p.title}》后不可恢复，确定删除吗？`,
-      '删除违规资源',
-      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'error' },
-    )
+    await ElMessageBox.confirm(`删除《${p.title}》后不可恢复，确定删除吗？`, '删除违规资源', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'error',
+    })
     await admin.deletePaper(p.id)
     ElMessage.success('资源已删除')
     fetchPapers()
@@ -93,7 +93,7 @@ async function deletePaper(p: Paper) {
             <template #default="{ row }">{{ row.uploadedAt.slice(0, 10) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="90">
-            <template #default="{ row }">
+            <template #default>
               <span class="ph-status ph-status--info">已下架</span>
             </template>
           </el-table-column>

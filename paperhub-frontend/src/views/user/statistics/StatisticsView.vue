@@ -20,7 +20,7 @@ onMounted(async () => {
 })
 
 /* ---------------- 图表配置 ---------------- */
-function trendOption(data: { label: string; count: number }[]) {
+function trendOption(data: { label: string; count: number }[]): echarts.EChartsOption {
   return {
     grid: { left: 40, right: 20, top: 30, bottom: 28 },
     tooltip: { trigger: 'axis' },
@@ -55,7 +55,7 @@ function trendOption(data: { label: string; count: number }[]) {
   }
 }
 
-function yearOption(data: { name: string; count: number }[]) {
+function yearOption(data: { name: string; count: number }[]): echarts.EChartsOption {
   return {
     grid: { left: 40, right: 20, top: 30, bottom: 28 },
     tooltip: { trigger: 'axis' },
@@ -88,7 +88,7 @@ function yearOption(data: { name: string; count: number }[]) {
   }
 }
 
-function categoryOption(data: { name: string; count: number }[]) {
+function categoryOption(data: { name: string; count: number }[]): echarts.EChartsOption {
   return {
     tooltip: { trigger: 'item', formatter: '{b}：{c} 篇（{d}%）' },
     legend: {
@@ -114,7 +114,7 @@ function categoryOption(data: { name: string; count: number }[]) {
   }
 }
 
-function journalOption(data: { name: string; count: number }[]) {
+function journalOption(data: { name: string; count: number }[]): echarts.EChartsOption {
   return {
     grid: { left: 150, right: 40, top: 20, bottom: 20 },
     tooltip: { trigger: 'axis' },
@@ -164,7 +164,9 @@ function journalOption(data: { name: string; count: number }[]) {
         <div class="ph-card stat-card">
           <div class="stat-label">论文总数</div>
           <div class="stat-value">{{ stat.totalPapers }}</div>
-          <div class="stat-sub">含私有 {{ stat.privateCount }} 篇 · 共享 {{ stat.sharedCount }} 篇</div>
+          <div class="stat-sub">
+            含私有 {{ stat.privateCount }} 篇 · 共享 {{ stat.sharedCount }} 篇
+          </div>
         </div>
         <div class="ph-card stat-card">
           <div class="stat-label">收藏论文</div>

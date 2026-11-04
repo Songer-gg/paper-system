@@ -4,6 +4,7 @@ import { mockCategories } from '@/mocks/categories'
 import { mockTags } from '@/mocks/tags'
 import { sharedPapers } from '@/mocks/papers/sharedPapers'
 import { privatePapers } from '@/mocks/papers/privatePapers'
+import { pendingPapers } from '@/mocks/papers/pendingPapers'
 
 /**
  * 知识管理服务：分类 / 标签的增删改查与论文计数。
@@ -25,13 +26,13 @@ interface CustomCategory extends Category {
   custom?: boolean
 }
 
-let customCategories = loadJSON<CustomCategory[]>(CUSTOM_CATEGORY_KEY, [])
-let renamedCategories = loadJSON<Record<number, string>>(RENAMED_CATEGORY_KEY, {})
-let deletedCategoryIds = loadJSON<number[]>(DELETED_CATEGORY_KEY, [])
-let movedCategories = loadJSON<Record<number, number | null>>(MOVED_CATEGORY_KEY, {})
-let customTags = loadJSON<Tag[]>(CUSTOM_TAG_KEY, [])
-let tagOverlay = loadJSON<Record<number, Partial<Tag>>>(TAG_OVERLAY_KEY, {})
-let deletedTagIds = loadJSON<number[]>(DELETED_TAG_KEY, [])
+const customCategories = loadJSON<CustomCategory[]>(CUSTOM_CATEGORY_KEY, [])
+const renamedCategories = loadJSON<Record<number, string>>(RENAMED_CATEGORY_KEY, {})
+const deletedCategoryIds = loadJSON<number[]>(DELETED_CATEGORY_KEY, [])
+const movedCategories = loadJSON<Record<number, number | null>>(MOVED_CATEGORY_KEY, {})
+const customTags = loadJSON<Tag[]>(CUSTOM_TAG_KEY, [])
+const tagOverlay = loadJSON<Record<number, Partial<Tag>>>(TAG_OVERLAY_KEY, {})
+const deletedTagIds = loadJSON<number[]>(DELETED_TAG_KEY, [])
 
 function delay<T>(value: T, ms = 150): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
@@ -59,7 +60,10 @@ function visiblePapers(): Paper[] {
     .filter((p) => !deleted.includes(p.id))
     .map((p) => ({ ...p, ...(overlay[p.id] ?? {}) }))
     .filter((p) => p.uploaderId === CURRENT_USER_ID)
-  const shared = sharedPapers.filter((p) => p.reviewStatus === 'approved')
+  const shared = [...sharedPapers, ...pendingPapers, ...uploaded]
+    .filter((p) => !deleted.includes(p.id))
+    .map((p) => ({ ...p, ...(overlay[p.id] ?? {}) }))
+    .filter((p) => p.visibility === 'shared' && p.reviewStatus === 'approved')
   const seen = new Set<number>()
   return [...mine, ...shared].filter((p) => !seen.has(p.id) && seen.add(p.id))
 }
@@ -99,15 +103,15 @@ export async function deleteCategory(id: number): Promise<string[]> {
   const toDelete: number[] = [id]
   let frontier = [id]
   while (frontier.length) {
-    const next = all.filter((c) => c.parentId !== null && frontier.includes(c.parentId)).map((c) => c.id)
+    const next = all
+      .filter((c) => c.parentId !== null && frontier.includes(c.parentId))
+      .map((c) => c.id)
     toDelete.push(...next)
     frontier = next
   }
   deletedCategoryIds.push(...toDelete)
   saveJSON(DELETED_CATEGORY_KEY, deletedCategoryIds)
-  const names = toDelete
-    .map((cid) => all.find((c) => c.id === cid)?.name ?? '')
-    .filter(Boolean)
+  const names = toDelete.map((cid) => all.find((c) => c.id === cid)?.name ?? '').filter(Boolean)
   return delay(names)
 }
 

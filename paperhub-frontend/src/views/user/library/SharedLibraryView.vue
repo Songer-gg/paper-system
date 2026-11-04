@@ -33,8 +33,13 @@ const options = getFilterOptions()
 const favoriteIds = ref<number[]>(userData.getFavoritePaperIds())
 
 /* 分类树（供 el-tree-select 使用） */
-const categoryTree = computed(() => {
-  const build = (parentId: number | null): any[] =>
+interface TreeNodeOption {
+  value: number
+  label: string
+  children: TreeNodeOption[]
+}
+const categoryTree = computed<TreeNodeOption[]>(() => {
+  const build = (parentId: number | null): TreeNodeOption[] =>
     options.categories
       .filter((c) => c.parentId === parentId)
       .map((c) => ({
@@ -129,9 +134,7 @@ function categoryNames(paper: Paper): string {
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">共享论文库</h2>
-        <p class="ph-page-desc">
-          平台用户共同维护的论文资源，经管理员审核通过后全员可查看与下载
-        </p>
+        <p class="ph-page-desc">平台用户共同维护的论文资源，经管理员审核通过后全员可查看与下载</p>
       </div>
       <div class="header-actions">
         <el-radio-group v-model="viewMode" size="default">
@@ -142,7 +145,11 @@ function categoryNames(paper: Paper): string {
             <el-icon><Grid /></el-icon>&nbsp;卡片
           </el-radio-button>
         </el-radio-group>
-        <el-button type="primary" :icon="'UploadFilled'" @click="router.push('/user/papers/upload')">
+        <el-button
+          type="primary"
+          :icon="'UploadFilled'"
+          @click="router.push('/user/papers/upload')"
+        >
           上传论文
         </el-button>
       </div>
@@ -251,8 +258,12 @@ function categoryNames(paper: Paper): string {
 
           <div class="paper-row-side">
             <div class="side-stats">
-              <span><el-icon><Download /></el-icon>{{ paper.downloads }}</span>
-              <span class="side-uploader">{{ getUserName(paper.uploaderId) }} · {{ paper.uploadedAt.slice(5, 16) }}</span>
+              <span
+                ><el-icon><Download /></el-icon>{{ paper.downloads }}</span
+              >
+              <span class="side-uploader"
+                >{{ getUserName(paper.uploaderId) }} · {{ paper.uploadedAt.slice(5, 16) }}</span
+              >
             </div>
             <div class="side-actions">
               <el-tooltip content="PDF 预览" placement="top">
@@ -305,11 +316,18 @@ function categoryNames(paper: Paper): string {
           </div>
           <div class="card-footer">
             <span class="side-uploader">
-              <el-icon><Download /></el-icon>{{ paper.downloads }} · {{ getUserName(paper.uploaderId) }}
+              <el-icon><Download /></el-icon>{{ paper.downloads }} ·
+              {{ getUserName(paper.uploaderId) }}
             </span>
             <div class="side-actions">
               <el-button text circle size="small" :icon="'View'" @click="goReader(paper)" />
-              <el-button text circle size="small" :icon="'Download'" @click="downloadPaper(paper)" />
+              <el-button
+                text
+                circle
+                size="small"
+                :icon="'Download'"
+                @click="downloadPaper(paper)"
+              />
               <el-button
                 text
                 circle
@@ -505,7 +523,9 @@ function categoryNames(paper: Paper): string {
   padding: 18px;
   display: flex;
   flex-direction: column;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 .paper-card:hover {
   transform: translateY(-3px);

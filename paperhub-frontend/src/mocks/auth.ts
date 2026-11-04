@@ -48,9 +48,7 @@ export function mockVerifyLogin(
       if (!account) {
         reject(
           new Error(
-            role === 'admin'
-              ? '管理员账号不存在，请确认账号信息'
-              : '用户名或邮箱不存在，请先注册',
+            role === 'admin' ? '管理员账号不存在，请确认账号信息' : '用户名或邮箱不存在，请先注册',
           ),
         )
         return
@@ -59,7 +57,8 @@ export function mockVerifyLogin(
         reject(new Error('密码错误，请重新输入'))
         return
       }
-      const { password: _ignored, ...user } = account
+      const { password: accountPassword, ...user } = account
+      void accountPassword
       resolve(user)
     }, 600)
   })

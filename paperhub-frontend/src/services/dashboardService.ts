@@ -7,11 +7,22 @@ import { mockUsers } from '@/mocks/users'
 import { getCategory } from '@/mocks/categories'
 import { registerTrend, uploadTrend } from '@/mocks/admin/stats'
 import * as userData from '@/services/userDataService'
+import { loadJSON } from '@/utils/storage'
 
 const CURRENT_USER_ID = 1
 
 function delay<T>(value: T, ms = 300): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
+}
+
+/** 合并 overlay / 删除 / 用户上传后的全量论文池（静态 + 待审 + 上传） */
+function allPapers(): Paper[] {
+  const overlay = loadJSON<Record<number, Partial<Paper>>>('ph_paper_overlay', {})
+  const deleted = loadJSON<number[]>('ph_deleted_papers', [])
+  const uploaded = loadJSON<Paper[]>('ph_uploaded_papers', [])
+  return [...sharedPapers, ...pendingPapers, ...privatePapers, ...uploaded]
+    .filter((p) => !deleted.includes(p.id))
+    .map((p) => ({ ...p, ...(overlay[p.id] ?? {}) }))
 }
 
 export interface UserDashboard {
@@ -31,13 +42,21 @@ export interface UserDashboard {
 }
 
 export async function getUserDashboard(): Promise<UserDashboard> {
-  const myShared = sharedPapers.filter((p) => p.uploaderId === CURRENT_USER_ID)
-  const myPapers = [...myShared, ...privatePapers]
+  const mine = allPapers().filter((p) => p.uploaderId === CURRENT_USER_ID)
+  const myShared = mine.filter((p) => p.visibility === 'shared')
+  const myPrivate = mine.filter((p) => p.visibility === 'private')
+  const myPapers = [...myShared, ...myPrivate]
   const favorites = await userData.getFavorites()
   const reading = userData.getReadingRecords()
 
+  /* 论文解析：自己的论文，或共享库中审核通过的论文 */
   const readPaper = (paperId: number): Paper | undefined =>
-    sharedPapers.find((p) => p.id === paperId)
+    allPapers().find(
+      (p) =>
+        p.id === paperId &&
+        (p.uploaderId === CURRENT_USER_ID ||
+          (p.visibility === 'shared' && p.reviewStatus === 'approved')),
+    )
 
   /* 论文发表年份分布 */
   const yearMap = new Map<number, number>()
@@ -86,7 +105,7 @@ export async function getUserDashboard(): Promise<UserDashboard> {
   return delay({
     counts: {
       total: myPapers.length,
-      private: privatePapers.length,
+      private: myPrivate.length,
       shared: myShared.length,
       favorites: favorites.length,
       read: reading.filter((r) => r.status === 'read').length,
@@ -146,8 +165,6 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     recentUploads: [...allShared]
       .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
       .slice(0, 6),
-    pendingTasks: [...pendingPapers].sort((a, b) =>
-      b.uploadedAt.localeCompare(a.uploadedAt),
-    ),
+    pendingTasks: [...pendingPapers].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
   })
 }

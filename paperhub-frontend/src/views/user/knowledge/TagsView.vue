@@ -8,8 +8,16 @@ import * as knowledge from '@/services/knowledgeService'
 const router = useRouter()
 
 const PRESET_COLORS = [
-  '#2563EB', '#7C3AED', '#0891B2', '#D97706', '#DB2777',
-  '#16A34A', '#475569', '#059669', '#EA580C', '#0D9488',
+  '#2563EB',
+  '#7C3AED',
+  '#0891B2',
+  '#D97706',
+  '#DB2777',
+  '#16A34A',
+  '#475569',
+  '#059669',
+  '#EA580C',
+  '#0D9488',
 ]
 
 /* ---------------- 标签数据 ---------------- */
@@ -122,13 +130,13 @@ async function handleDelete(tag: Tag) {
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">标签管理</h2>
-        <p class="ph-page-desc">
-          标签与论文多对多关联，点击标签查看关联论文
-        </p>
+        <p class="ph-page-desc">标签与论文多对多关联，点击标签查看关联论文</p>
       </div>
       <div class="header-actions">
         <el-input v-model="keyword" placeholder="搜索标签" clearable style="width: 200px">
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-button type="primary" :icon="'Plus'" @click="openCreate">新建标签</el-button>
       </div>
@@ -180,12 +188,7 @@ async function handleDelete(tag: Tag) {
           </div>
           <div v-if="papersLoading" v-loading="true" class="papers-loading" />
           <template v-else-if="tagPapers.length">
-            <div
-              v-for="p in tagPapers"
-              :key="p.id"
-              class="paper-row"
-              @click="goDetail(p.id)"
-            >
+            <div v-for="p in tagPapers" :key="p.id" class="paper-row" @click="goDetail(p.id)">
               <div class="paper-row-main">
                 <div class="paper-title ph-ellipsis">{{ p.title }}</div>
                 <div class="paper-meta">

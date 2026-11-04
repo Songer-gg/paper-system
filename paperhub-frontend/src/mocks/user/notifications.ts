@@ -12,8 +12,7 @@ export const mockNotifications: MockNotification[] = [
     id: 1,
     type: 'review',
     title: '审核结果通知',
-    content:
-      '您共享的论文《联邦学习中的差分隐私机制研究综述》已审核通过，现已进入共享论文库。',
+    content: '您共享的论文《联邦学习中的差分隐私机制研究综述》已审核通过，现已进入共享论文库。',
     time: '2026-11-02 14:20',
     read: false,
   },
@@ -21,8 +20,7 @@ export const mockNotifications: MockNotification[] = [
     id: 2,
     type: 'system',
     title: '平台维护公告',
-    content:
-      'PaperHub 将于本周日 02:00-04:00 进行系统升级维护，期间服务可能间歇性不可用。',
+    content: 'PaperHub 将于本周日 02:00-04:00 进行系统升级维护，期间服务可能间歇性不可用。',
     time: '2026-11-01 09:00',
     read: false,
   },

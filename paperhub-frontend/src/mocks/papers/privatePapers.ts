@@ -24,7 +24,8 @@ export const privatePapers: Paper[] = [
     id: 2002,
     title: '多模态大模型在工业质检中的应用调研',
     authors: ['林知远'],
-    abstract: '收集整理多模态大模型用于表面缺陷检测的公开工作，比较不同视觉编码器与提示策略的适配性。',
+    abstract:
+      '收集整理多模态大模型用于表面缺陷检测的公开工作，比较不同视觉编码器与提示策略的适配性。',
     doi: '',
     journal: '',
     year: 2025,

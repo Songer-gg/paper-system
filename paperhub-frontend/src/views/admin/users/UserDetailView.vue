@@ -28,6 +28,10 @@ async function fetchDetail() {
 }
 onMounted(fetchDetail)
 
+function statusLabel(p: Paper): string {
+  return reviewStatusLabels[p.reviewStatus ?? 'pending']
+}
+
 function statusTagType(p: Paper) {
   switch (p.reviewStatus) {
     case 'approved':
@@ -109,12 +113,7 @@ function goBack() {
             <el-avatar :size="64" class="profile-avatar">{{ user.name.charAt(0) }}</el-avatar>
             <div class="profile-name">
               {{ user.name }}
-              <el-tag
-                v-if="user.role === 'admin'"
-                type="danger"
-                size="small"
-                effect="plain"
-              >
+              <el-tag v-if="user.role === 'admin'" type="danger" size="small" effect="plain">
                 管理员
               </el-tag>
             </div>
@@ -186,7 +185,7 @@ function goBack() {
             <el-table-column label="审核状态" width="110">
               <template #default="{ row }">
                 <el-tag :type="statusTagType(row)" size="small" effect="light">
-                  {{ reviewStatusLabels[row.reviewStatus ?? 'pending'] }}
+                  {{ statusLabel(row) }}
                 </el-tag>
               </template>
             </el-table-column>

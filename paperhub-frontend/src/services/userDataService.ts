@@ -13,9 +13,9 @@ const FAVORITE_KEY = 'ph_favorites'
 const READING_KEY = 'ph_reading'
 const NOTE_KEY = 'ph_notes'
 
-let favoriteRecords = loadJSON(FAVORITE_KEY, seedFavoriteRecords)
-let readingRecords = loadJSON(READING_KEY, seedReadingRecords)
-let notes = loadJSON<Note[]>(NOTE_KEY, seedNotes)
+const favoriteRecords = loadJSON(FAVORITE_KEY, seedFavoriteRecords)
+const readingRecords = loadJSON(READING_KEY, seedReadingRecords)
+const notes = loadJSON<Note[]>(NOTE_KEY, seedNotes)
 
 function delay<T>(value: T, ms = 150): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))

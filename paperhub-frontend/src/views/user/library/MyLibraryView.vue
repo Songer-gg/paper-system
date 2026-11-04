@@ -63,11 +63,11 @@ function categoryNames(paper: Paper): string {
 /* ---------------- 行为操作 ---------------- */
 async function handleDelete(paper: Paper) {
   try {
-    await ElMessageBox.confirm(
-      `删除后《${paper.title}》将无法恢复，确定删除吗？`,
-      '删除私有论文',
-      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' },
-    )
+    await ElMessageBox.confirm(`删除后《${paper.title}》将无法恢复，确定删除吗？`, '删除私有论文', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
     await myLibrary.deleteMyPaper(paper.id)
     ElMessage.success('论文已删除')
     fetchAll()
@@ -139,8 +139,13 @@ function goReader(id: number) {
 const tags = mockTags
 const yearOptions = Array.from({ length: 36 }, (_, i) => new Date().getFullYear() - i)
 
-const categoryTree = computed(() => {
-  const build = (parentId: number | null): any[] =>
+interface CascaderNode {
+  value: number
+  label: string
+  children: CascaderNode[]
+}
+const categoryTree = computed<CascaderNode[]>(() => {
+  const build = (parentId: number | null): CascaderNode[] =>
     mockCategories
       .filter((c) => c.parentId === parentId)
       .map((c) => ({ value: c.id, label: c.name, children: build(c.id) }))
@@ -210,15 +215,16 @@ async function saveEdit() {
         </p>
       </div>
       <div class="header-actions">
-        <el-input
-          v-model="keyword"
-          placeholder="按标题搜索"
-          clearable
-          style="width: 220px"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
+        <el-input v-model="keyword" placeholder="按标题搜索" clearable style="width: 220px">
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
-        <el-button type="primary" :icon="'UploadFilled'" @click="router.push('/user/papers/upload')">
+        <el-button
+          type="primary"
+          :icon="'UploadFilled'"
+          @click="router.push('/user/papers/upload')"
+        >
           上传论文
         </el-button>
       </div>

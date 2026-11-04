@@ -30,10 +30,34 @@ onMounted(async () => {
 const statItems = computed(() => {
   const t = data.value?.totals
   return [
-    { label: '注册用户', value: t?.users ?? 0, caption: '含 1 名已禁用', icon: 'User', path: '/admin/users' },
-    { label: '共享论文', value: t?.papers ?? 0, caption: '审核通过', icon: 'Collection', path: '/admin/papers' },
-    { label: '待审核论文', value: t?.pending ?? 0, caption: '需要及时处理', icon: 'DocumentChecked', highlight: true, path: '/admin/review' },
-    { label: '今日新增论文', value: t?.papersToday ?? 0, caption: '较昨日 +2', icon: 'UploadFilled' },
+    {
+      label: '注册用户',
+      value: t?.users ?? 0,
+      caption: '含 1 名已禁用',
+      icon: 'User',
+      path: '/admin/users',
+    },
+    {
+      label: '共享论文',
+      value: t?.papers ?? 0,
+      caption: '审核通过',
+      icon: 'Collection',
+      path: '/admin/papers',
+    },
+    {
+      label: '待审核论文',
+      value: t?.pending ?? 0,
+      caption: '需要及时处理',
+      icon: 'DocumentChecked',
+      highlight: true,
+      path: '/admin/review',
+    },
+    {
+      label: '今日新增论文',
+      value: t?.papersToday ?? 0,
+      caption: '较昨日 +2',
+      icon: 'UploadFilled',
+    },
     { label: '今日新增用户', value: t?.usersToday ?? 0, caption: '注册即计入', icon: 'Plus' },
   ]
 })
@@ -260,7 +284,8 @@ const categoryChartOption = computed<EChartsOption>(() => {
                 <div class="task-main">
                   <div class="task-title ph-ellipsis">{{ p.title }}</div>
                   <div class="task-meta">
-                    {{ getUserName(p.uploaderId) }} · {{ p.journal || '未填写期刊' }} · {{ p.year }} 年
+                    {{ getUserName(p.uploaderId) }} · {{ p.journal || '未填写期刊' }} ·
+                    {{ p.year }} 年
                   </div>
                 </div>
                 <span class="task-time">{{ p.uploadedAt.slice(5, 16) }}</span>

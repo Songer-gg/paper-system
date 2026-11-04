@@ -18,6 +18,14 @@ const actionTag: Record<DuplicateRecord['action'], 'danger' | 'success' | 'prima
   linked: 'primary',
 }
 
+function actionLabel(a: DuplicateRecord['action']): string {
+  return actionLabels[a]
+}
+
+function actionTagType(a: DuplicateRecord['action']): 'danger' | 'success' | 'primary' {
+  return actionTag[a]
+}
+
 async function fetchRecords() {
   loading.value = true
   records.value = await admin.getDuplicateRecords()
@@ -49,8 +57,8 @@ onMounted(fetchRecords)
         </el-table-column>
         <el-table-column label="处理动作" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="actionTag[row.action]" size="small" effect="light">
-              {{ actionLabels[row.action] }}
+            <el-tag :type="actionTagType(row.action)" size="small" effect="light">
+              {{ actionLabel(row.action) }}
             </el-tag>
           </template>
         </el-table-column>

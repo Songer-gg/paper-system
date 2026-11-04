@@ -176,10 +176,7 @@ const hasTable = computed(() => currentPage.value % 5 === 3)
 
       <template v-else-if="paper">
         <div class="page-stage">
-          <div
-            class="paper-page"
-            :style="{ transform: `scale(${scale})` }"
-          >
+          <div class="paper-page" :style="{ transform: `scale(${scale})` }">
             <!-- 页眉：论文标题 + 期刊 -->
             <div class="sim-header">
               <div class="sim-journal">{{ paper.journal || 'Preprint' }}</div>

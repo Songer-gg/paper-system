@@ -55,7 +55,9 @@ function onSave() {
             单个文件不超过 {{ settings.maxUploadMB }} MB
           </el-descriptions-item>
           <el-descriptions-item label="允许上传类型">
-            <el-tag type="primary" effect="plain" size="small">PDF（{{ settings.allowedTypes }}）</el-tag>
+            <el-tag type="primary" effect="plain" size="small"
+              >PDF（{{ settings.allowedTypes }}）</el-tag
+            >
           </el-descriptions-item>
         </el-descriptions>
         <el-alert
