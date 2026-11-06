@@ -33,8 +33,8 @@ export async function getUserStatistics(): Promise<{
 }> {
   const mine = await myLibrary.getMyPapers()
   const myPapers = [...mine.privatePapers, ...mine.sharedPapers]
-  const favorites = userData.getFavoritePaperIds()
-  const reading = userData.getReadingRecords()
+  const favorites = await userData.getFavorites()
+  const reading = await userData.getReadingRecords()
   const notes = await userData.getNotes()
 
   /* 最近 12 个月的阅读趋势（按最近阅读时间归月） */

@@ -10,9 +10,9 @@
 
 export interface ApiResponse<T> {
   /** 0 = 成功；非 0 见 ErrorCode */
-  code: number
-  message: string
-  data: T
+  code: number;
+  message: string;
+  data: T;
 }
 
 /* ================= 错误码 ================= */
@@ -26,9 +26,9 @@ export const ErrorCode = {
   INVALID_PARAM: 1005,
   BIZ_REJECTED: 1006,
   SERVER_ERROR: 1500,
-} as const
+} as const;
 
-export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /* ================= 请求客户端约定 ================= */
 
@@ -39,16 +39,20 @@ export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
  * - 收到非 0 code 时抛出携带 code/message 的 ApiError
  */
 export interface ApiClient {
-  get<T>(url: string, params?: Record<string, unknown>): Promise<T>
-  post<T>(url: string, body?: unknown, params?: Record<string, unknown>): Promise<T>
+  get<T>(url: string, params?: Record<string, unknown>): Promise<T>;
+  post<T>(
+    url: string,
+    body?: unknown,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
   /** PATCH 用于部分更新 */
-  patch<T>(url: string, body?: unknown): Promise<T>
-  put<T>(url: string, body?: unknown): Promise<T>
-  delete<T>(url: string): Promise<T>
+  patch<T>(url: string, body?: unknown): Promise<T>;
+  put<T>(url: string, body?: unknown): Promise<T>;
+  delete<T>(url: string): Promise<T>;
   /** multipart/form-data 上传 */
-  upload<T>(url: string, form: FormData): Promise<T>
+  upload<T>(url: string, form: FormData, method: "POST" | "PUT"): Promise<T>;
   /** 文件流下载（返回 Blob，由调用方触发浏览器保存） */
-  download(url: string): Promise<Blob>
+  download(url: string, method: "GET" | "POST"): Promise<Blob>;
 }
 
 export class ApiError extends Error {
@@ -56,6 +60,6 @@ export class ApiError extends Error {
     public code: number,
     message: string,
   ) {
-    super(message)
+    super(message);
   }
 }

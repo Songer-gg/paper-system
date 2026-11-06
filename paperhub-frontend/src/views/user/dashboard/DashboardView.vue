@@ -4,8 +4,8 @@ import { useRouter } from 'vue-router'
 import type { EChartsOption } from 'echarts'
 import VChart from '@/components/charts/VChart.vue'
 import TagChip from '@/components/common/TagChip.vue'
-import { getTag } from '@/mocks/tags'
-import { getCategory } from '@/mocks/categories'
+import { getTag } from '@/services/knowledgeService'
+import { getCategory } from '@/services/knowledgeService'
 import { useAuthStore } from '@/stores/auth'
 import { getUserDashboard, type UserDashboard } from '@/services/dashboardService'
 import { readingStatusLabels, type ReadingStatus } from '@/types/paper'
@@ -159,7 +159,7 @@ const readingColors: Record<ReadingStatus, string> = {
 }
 const readingTotal = computed(() => data.value?.readingDist.reduce((s, r) => s + r.count, 0) ?? 0)
 
-function paperCategoryName(id: number): string {
+function paperCategoryName(id: number | null): string {
   return getCategory(id)?.name ?? '未分类'
 }
 

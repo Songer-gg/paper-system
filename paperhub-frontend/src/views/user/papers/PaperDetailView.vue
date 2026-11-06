@@ -6,7 +6,7 @@ import type { Paper, ReadingStatus } from '@/types/paper'
 import { readingStatusLabels, reviewStatusLabels } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
 import * as userData from '@/services/userDataService'
-import { getTag } from '@/mocks/tags'
+import { getTag } from '@/services/knowledgeService'
 import { getUserName as getUploaderName } from '@/mocks/users'
 import TagChip from '@/components/common/TagChip.vue'
 
@@ -24,18 +24,21 @@ const hasReadingRecord = ref(false)
 
 async function fetchAll() {
   loading.value = true
-  const p = await myLibrary.getPaperForDetail(paperId)
-  if (!p) {
-    notFound.value = true
+  try {
+    const p = await myLibrary.getPaperForDetail(paperId)
+    if (!p) {
+      notFound.value = true
+      loading.value = false
+      return
+    }
+    paper.value = p
+    isFavorited.value = userData.getFavoritePaperIds().includes(p.id)
+    const record = (await userData.getReadingRecords()).find((r) => r.paperId === p.id)
+    hasReadingRecord.value = !!record
+    readingStatus.value = record?.status ?? 'unread'
+  } finally {
     loading.value = false
-    return
   }
-  paper.value = p
-  isFavorited.value = userData.getFavoritePaperIds().includes(p.id)
-  const record = userData.getReadingRecords().find((r) => r.paperId === p.id)
-  hasReadingRecord.value = !!record
-  readingStatus.value = record?.status ?? 'unread'
-  loading.value = false
 }
 onMounted(fetchAll)
 
@@ -49,7 +52,7 @@ const metaItems = computed(() => {
     { label: '发表年份', value: `${p.year} 年` },
     { label: '期刊 / 会议', value: p.journal || '—' },
     { label: 'DOI', value: p.doi || '—' },
-    { label: '上传者', value: getUploaderName(p.uploaderId) },
+    { label: '上传者', value: p.uploaderName ?? getUploaderName(p.uploaderId) },
     { label: '上传时间', value: p.uploadedAt },
     { label: '文件大小', value: `${p.fileSizeMB} MB · ${p.pageCount} 页` },
     { label: '下载次数', value: `${p.downloads} 次` },

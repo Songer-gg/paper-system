@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as admin from '@/services/adminService'
 import type { Paper } from '@/types/paper'
 import { reviewStatusLabels } from '@/types/paper'
-import { getCategory } from '@/mocks/categories'
+import { getCategory } from '@/services/knowledgeService'
 import { getUserName } from '@/mocks/users'
 import type { DuplicatePair } from '@/types/admin'
 
@@ -20,9 +21,12 @@ let duplicatePairs: DuplicatePair[] = []
 
 async function fetchPapers() {
   loading.value = true
-  groups.value = await admin.getReviewPapers()
-  duplicatePairs = await admin.getDuplicatePairs('pending')
-  loading.value = false
+  try {
+    groups.value = await admin.getReviewPapers()
+    duplicatePairs = await admin.getDuplicatePairs('pending')
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchPapers)
 
@@ -59,7 +63,11 @@ async function approve() {
     ElMessage.warning('请先阅读并确认版权声明后再通过审核')
     return
   }
-  await admin.approvePaper(current.value.id, comment.value.trim() || '符合共享规范，审核通过。')
+  await admin.approvePaper(
+    current.value.id,
+    comment.value.trim() || '符合共享规范，审核通过。',
+    copyrightConfirmed.value,
+  )
   ElMessage.success('审核通过，论文已进入共享论文库')
   drawer.value = false
   fetchPapers()
@@ -82,8 +90,8 @@ async function reject() {
     ElMessage.success('已驳回该论文')
     drawer.value = false
     fetchPapers()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 </script>
@@ -125,7 +133,9 @@ async function reject() {
             </template>
           </el-table-column>
           <el-table-column label="上传者" width="100">
-            <template #default="{ row }">{{ getUserName(row.uploaderId) }}</template>
+            <template #default="{ row }">{{
+              row.uploaderName ?? getUserName(row.uploaderId)
+            }}</template>
           </el-table-column>
           <el-table-column label="作者" min-width="150" show-overflow-tooltip>
             <template #default="{ row }">{{ row.authors.join('、') }}</template>
@@ -211,7 +221,7 @@ async function reject() {
             {{ getCategory(current.categoryId)?.name ?? '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="上传者">
-            {{ getUserName(current.uploaderId) }}
+            {{ current.uploaderName ?? getUserName(current.uploaderId) }}
           </el-descriptions-item>
           <el-descriptions-item label="提交时间">{{ current.uploadedAt }}</el-descriptions-item>
         </el-descriptions>

@@ -284,8 +284,8 @@ const categoryChartOption = computed<EChartsOption>(() => {
                 <div class="task-main">
                   <div class="task-title ph-ellipsis">{{ p.title }}</div>
                   <div class="task-meta">
-                    {{ getUserName(p.uploaderId) }} · {{ p.journal || '未填写期刊' }} ·
-                    {{ p.year }} 年
+                    {{ p.uploaderName ?? getUserName(p.uploaderId) }} ·
+                    {{ p.journal || '未填写期刊' }} · {{ p.year }} 年
                   </div>
                 </div>
                 <span class="task-time">{{ p.uploadedAt.slice(5, 16) }}</span>
@@ -306,7 +306,9 @@ const categoryChartOption = computed<EChartsOption>(() => {
                 </span>
                 <div class="task-main">
                   <div class="task-title ph-ellipsis">{{ p.title }}</div>
-                  <div class="task-meta">{{ getUserName(p.uploaderId) }} · 上传者</div>
+                  <div class="task-meta">
+                    {{ p.uploaderName ?? getUserName(p.uploaderId) }} · 上传者
+                  </div>
                 </div>
                 <span class="task-time">{{ p.uploadedAt.slice(5, 16) }}</span>
               </div>

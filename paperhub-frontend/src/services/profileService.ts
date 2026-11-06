@@ -1,4 +1,6 @@
-import { loadJSON, saveJSON } from '@/utils/storage'
+import { currentUserId } from '@/utils/personalStorage'
+import { loadPersonalJSON, savePersonalJSON } from '@/utils/personalStorage'
+import { getMyPapers } from '@/services/myLibraryService'
 import { mockUsers } from '@/mocks/users'
 import type { PlatformUser } from '@/types/user'
 
@@ -7,7 +9,6 @@ import type { PlatformUser } from '@/types/user'
  * 演示账号原始密码为 123456。
  */
 
-const CURRENT_USER_ID = 1
 const PROFILE_KEY = 'ph_profile_overlay'
 
 interface ProfileOverlay {
@@ -16,8 +17,6 @@ interface ProfileOverlay {
   /** 头像图片 dataURL；为空时展示姓名首字 */
   avatar?: string
 }
-
-let overlay = loadJSON<ProfileOverlay>(PROFILE_KEY, {})
 
 export interface MyProfile extends PlatformUser {
   avatar: string
@@ -28,8 +27,12 @@ function delay<T>(value: T, ms = 150): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
 }
 
-export async function getMyProfile(uploadedCount: number): Promise<MyProfile> {
-  const base = mockUsers.find((u) => u.id === CURRENT_USER_ID)!
+export async function getMyProfile(): Promise<MyProfile> {
+  const base = mockUsers.find((u) => u.id === currentUserId())
+  if (!base) throw new Error('用户不存在')
+  const overlay = loadPersonalJSON<ProfileOverlay>(PROFILE_KEY, {})
+  const mine = await getMyPapers()
+  const uploadedCount = mine.privatePapers.length + mine.sharedPapers.length
   return delay({
     ...base,
     name: overlay.name ?? base.name,
@@ -40,17 +43,21 @@ export async function getMyProfile(uploadedCount: number): Promise<MyProfile> {
 }
 
 export async function updateProfile(patch: { name?: string; email?: string }): Promise<MyProfile> {
-  overlay = { ...overlay, ...patch }
-  saveJSON(PROFILE_KEY, overlay)
-  const uploadedCount = loadJSON<unknown[]>('ph_uploaded_papers', []).length
-  return getMyProfile(uploadedCount)
+  const overlay = { ...loadPersonalJSON<ProfileOverlay>(PROFILE_KEY, {}), ...patch }
+  savePersonalJSON(PROFILE_KEY, overlay)
+  return getMyProfile()
 }
 
-export async function updateAvatar(dataUrl: string): Promise<MyProfile> {
-  overlay.avatar = dataUrl
-  saveJSON(PROFILE_KEY, overlay)
-  const uploadedCount = loadJSON<unknown[]>('ph_uploaded_papers', []).length
-  return getMyProfile(uploadedCount)
+export async function updateAvatar(file: File): Promise<MyProfile> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('无法读取头像文件'))
+    reader.readAsDataURL(file)
+  })
+  const overlay = { ...loadPersonalJSON<ProfileOverlay>(PROFILE_KEY, {}), avatar: dataUrl }
+  savePersonalJSON(PROFILE_KEY, overlay)
+  return getMyProfile()
 }
 
 export interface PasswordResult {
@@ -58,7 +65,7 @@ export interface PasswordResult {
   message: string
 }
 
-/** 修改密码：校验原密码（演示账号为 123456），新密码需 ≥ 6 位且两次一致 */
+/** 修改密码：校验原密码（演示账号为 123456），新密码需 8–72 UTF-8 字节且两次一致 */
 export async function changePassword(
   oldPassword: string,
   newPassword: string,
@@ -67,8 +74,11 @@ export async function changePassword(
   if (oldPassword !== '123456') {
     return delay({ ok: false, message: '原密码不正确' })
   }
-  if (newPassword.length < 6) {
-    return delay({ ok: false, message: '新密码长度不能少于 6 位' })
+  if (
+    new TextEncoder().encode(newPassword).length < 8 ||
+    new TextEncoder().encode(newPassword).length > 72
+  ) {
+    return delay({ ok: false, message: '新密码须为 8–72 UTF-8 字节' })
   }
   if (newPassword !== confirmPassword) {
     return delay({ ok: false, message: '两次输入的新密码不一致' })

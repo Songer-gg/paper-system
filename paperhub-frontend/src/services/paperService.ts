@@ -1,8 +1,9 @@
 import type { PageResult, Paper } from '@/types/paper'
 import { sharedPapers } from '@/mocks/papers/sharedPapers'
 import { pendingPapers } from '@/mocks/papers/pendingPapers'
-import { mockCategories, getCategoryDescendantIds } from '@/mocks/categories'
+import { mockCategories } from '@/mocks/categories'
 import { mockTags } from '@/mocks/tags'
+import { getCategories, getTags, getCategoryDescendantIds } from '@/services/knowledgeService'
 import { loadJSON } from '@/utils/storage'
 
 /**
@@ -63,7 +64,8 @@ export async function searchSharedPapers(query: SharedQuery): Promise<PageResult
           .toLowerCase()
         if (!haystack.includes(kw)) return false
       }
-      if (categoryScope && !categoryScope.includes(p.categoryId)) return false
+      if (categoryScope && (p.categoryId === null || !categoryScope.includes(p.categoryId)))
+        return false
       if (year && p.year !== year) return false
       if (journal && p.journal !== journal) return false
       if (tagIds?.length && !tagIds.some((t) => p.tagIds.includes(t))) return false
@@ -90,16 +92,21 @@ export function getSharedPaperById(id: number): Paper | undefined {
 }
 
 /** 筛选选项：分类树 / 标签 / 年份 / 期刊（基于当前可见共享池） */
-export function getFilterOptions(): {
+export async function getFilterOptions(): Promise<{
   categories: typeof mockCategories
   tags: typeof mockTags
   years: number[]
   journals: string[]
-} {
+}> {
   const pool = visibleSharedPool()
   const years = [...new Set(pool.map((p) => p.year))].sort((a, b) => b - a)
   const journals = [...new Set(pool.map((p) => p.journal))].sort((a, b) =>
     a.localeCompare(b, 'zh-CN'),
   )
-  return { categories: mockCategories, tags: mockTags, years, journals }
+  return {
+    categories: (await getCategories()).filter((category) => !category.custom),
+    tags: (await getTags()).filter((tag) => !tag.custom),
+    years,
+    journals,
+  }
 }

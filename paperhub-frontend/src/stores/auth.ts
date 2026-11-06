@@ -31,6 +31,8 @@ export const useAuthStore = defineStore('auth', () => {
     const loggedIn = await mockVerifyLogin(username, password, role)
     user.value = loggedIn
     // “记住登录状态”：localStorage 持久化；否则 sessionStorage 会话级保存
+    localStorage.removeItem(STORAGE_KEY)
+    sessionStorage.removeItem(STORAGE_KEY)
     const storage = remember ? localStorage : sessionStorage
     storage.setItem(STORAGE_KEY, JSON.stringify(loggedIn))
     return loggedIn

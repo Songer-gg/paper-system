@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as admin from '@/services/adminService'
@@ -14,13 +15,16 @@ const paperMap = ref<Map<number, Paper>>(new Map())
 
 async function fetchPairs() {
   loading.value = true
-  const [list, papers] = await Promise.all([
-    admin.getDuplicatePairs('all'),
-    admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
-  ])
-  paperMap.value = new Map(papers.map((p) => [p.id, p]))
-  pairs.value = list
-  loading.value = false
+  try {
+    const [list, papers] = await Promise.all([
+      admin.getDuplicatePairs('all'),
+      admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
+    ])
+    paperMap.value = new Map(papers.map((p) => [p.id, p]))
+    pairs.value = list
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchPairs)
 
@@ -80,8 +84,8 @@ async function handlePair(pair: DuplicatePair, action: 'duplicate' | 'distinct' 
     else await admin.linkToOriginal(pair.id, note)
     ElMessage.success('处理完成')
     fetchPairs()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 

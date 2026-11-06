@@ -6,7 +6,7 @@ import type { Paper, ReadingRecord, ReadingStatus } from '@/types/paper'
 import { readingStatusLabels } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
 import * as userData from '@/services/userDataService'
-import { getCategory } from '@/mocks/categories'
+import { getCategory } from '@/services/knowledgeService'
 
 const router = useRouter()
 
@@ -21,12 +21,15 @@ const rows = ref<ReadingRow[]>([])
 
 async function fetchRows() {
   loading.value = true
-  const records = userData.getReadingRecords()
-  const papers = await Promise.all(records.map((r) => myLibrary.getPaperForDetail(r.paperId)))
-  rows.value = records
-    .map((record, i) => ({ record, paper: papers[i] }))
-    .filter((r): r is ReadingRow => !!r.paper)
-  loading.value = false
+  try {
+    const records = await userData.getReadingRecords()
+    const papers = await Promise.all(records.map((r) => myLibrary.getPaperForDetail(r.paperId)))
+    rows.value = records
+      .map((record, i) => ({ record, paper: papers[i] }))
+      .filter((r): r is ReadingRow => !!r.paper)
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchRows)
 
@@ -51,7 +54,7 @@ const statusTabs = computed(() => {
   const count = (s: ReadingStatus) => rows.value.filter((r) => r.record.status === s).length
   return [
     { key: 'all' as const, label: '全部', n: rows.value.length },
-    ...(['unread', 'reading', 'read', 'shelved'] as ReadingStatus[]).map((s) => ({
+    ...(['unread', 'reading', 'read', 'paused'] as ReadingStatus[]).map((s) => ({
       key: s,
       label: readingStatusLabels[s],
       n: count(s),

@@ -1,3 +1,6 @@
+import { sharedPapers } from '@/mocks/papers/sharedPapers'
+import { privatePapers } from '@/mocks/papers/privatePapers'
+import { pendingPapers } from '@/mocks/papers/pendingPapers'
 import type { Note } from '@/types/paper'
 
 /** 当前用户的阅读笔记（Markdown 内容，个人数据） */
@@ -92,4 +95,9 @@ export const seedNotes: Note[] = [
     createdAt: '2026-10-20 11:10',
     updatedAt: '2026-10-21 08:45',
   },
-]
+].map((note) => ({
+  ...note,
+  paperTitle:
+    [...sharedPapers, ...privatePapers, ...pendingPapers].find((paper) => paper.id === note.paperId)
+      ?.title ?? '原论文',
+}))

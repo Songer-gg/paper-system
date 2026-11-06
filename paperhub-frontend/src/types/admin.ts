@@ -6,10 +6,12 @@ export interface ReviewRecord {
   paperId: number
   paperTitle: string
   uploaderId: number
+  uploaderName?: string
   /** approved 通过 / rejected 驳回 */
   action: 'approved' | 'rejected'
   comment: string
   reviewerId: number
+  reviewerName?: string
   reviewedAt: string
 }
 
@@ -46,6 +48,7 @@ export interface ReportItem {
   id: number
   paperId: number
   reporterId: number
+  reporterName?: string
   type: ReportType
   reason: string
   createdAt: string
@@ -64,6 +67,7 @@ export interface DuplicateRecord {
   action: 'duplicate' | 'distinct' | 'linked'
   note: string
   handlerId: number
+  handlerName?: string
   handledAt: string
 }
 

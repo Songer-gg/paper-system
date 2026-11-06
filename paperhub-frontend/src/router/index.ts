@@ -99,6 +99,12 @@ const router = createRouter({
     },
     /* ---------------- 管理员端 ---------------- */
     {
+      path: '/admin/papers/:id/reader',
+      name: 'admin-paper-reader',
+      component: () => import('@/views/user/papers/PaperReaderView.vue'),
+      meta: { title: '论文预览', group: '论文资源管理' },
+    },
+    {
       path: '/admin',
       component: () => import('@/layouts/AdminLayout.vue'),
       redirect: '/admin/dashboard',

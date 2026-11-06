@@ -1,3 +1,5 @@
+> 历史文档：本文件记录第一阶段 Mock 原型需求。后端现行权限、共享状态和删除规则以 [BUSINESS_RULES.md](BUSINESS_RULES.md) 为准；用户已确认管理员可查看全部数据且敏感访问必须审计。
+
 # PaperHub 前端静态界面开发规划书
 
 **项目名称：** PaperHub 论文管理平台

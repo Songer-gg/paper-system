@@ -15,7 +15,7 @@ const profile = ref<MyProfile | null>(null)
 
 onMounted(async () => {
   stat.value = await getUserStatistics()
-  profile.value = await getMyProfile(stat.value.totalPapers)
+  profile.value = await getMyProfile()
   loading.value = false
 })
 

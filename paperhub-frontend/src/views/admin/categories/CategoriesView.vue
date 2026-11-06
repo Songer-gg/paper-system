@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as admin from '@/services/adminService'
@@ -24,7 +25,7 @@ const counts = computed<Record<number, number>>(() => {
   const map = new Map(categories.value.map((c) => [c.id, c]))
   const count: Record<number, number> = {}
   for (const p of papers.value) {
-    let cur = map.get(p.categoryId)
+    let cur = p.categoryId === null ? undefined : map.get(p.categoryId)
     while (cur) {
       count[cur.id] = (count[cur.id] ?? 0) + 1
       cur = cur.parentId !== null ? map.get(cur.parentId) : undefined
@@ -66,13 +67,16 @@ const filteredTree = computed<TreeNode[]>(() => {
 
 async function fetchAll() {
   loading.value = true
-  const [cats, ps] = await Promise.all([
-    knowledge.getCategories(),
-    admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
-  ])
-  categories.value = cats
-  papers.value = ps
-  loading.value = false
+  try {
+    const [cats, ps] = await Promise.all([
+      knowledge.getCategories(),
+      admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
+    ])
+    categories.value = cats
+    papers.value = ps
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchAll)
 
@@ -94,7 +98,7 @@ const selectedPapers = computed(() => {
     ids.push(...next)
     frontier = next
   }
-  return papers.value.filter((p) => ids.includes(p.categoryId))
+  return papers.value.filter((p) => p.categoryId !== null && ids.includes(p.categoryId))
 })
 
 function selectNode(node: TreeNode) {
@@ -169,8 +173,8 @@ async function removeCategory(cat: TreeNode) {
       selectedId.value = null
     }
     fetchAll()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 

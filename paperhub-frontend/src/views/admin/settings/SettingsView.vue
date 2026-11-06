@@ -10,7 +10,7 @@ const settings = ref({
   slogan: '面向科研人员的学术论文管理与共享平台',
   logoText: 'PH',
   version: 'V1.0（前端演示阶段）',
-  maxUploadMB: 20,
+  maxUploadMB: 100,
   allowedTypes: '.pdf',
   contactEmail: 'support@paperhub.example.cn',
 })

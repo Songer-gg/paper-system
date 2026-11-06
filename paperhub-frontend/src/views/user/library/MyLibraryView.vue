@@ -1,16 +1,18 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { Paper } from '@/types/paper'
+import type { Category, Paper, Tag } from '@/types/paper'
 import { reviewStatusLabels, type ReviewStatus } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
 import * as userData from '@/services/userDataService'
-import { mockCategories, getCategory } from '@/mocks/categories'
-import { getTag, mockTags } from '@/mocks/tags'
+import { getCategories, getCategory, getTags, getTag } from '@/services/knowledgeService'
 import TagChip from '@/components/common/TagChip.vue'
 
+const categories = ref<Category[]>([])
+const tags = ref<Tag[]>([])
 const route = useRoute()
 const router = useRouter()
 
@@ -24,11 +26,15 @@ const keyword = ref('')
 
 async function fetchAll() {
   loading.value = true
-  const mine = await myLibrary.getMyPapers()
-  privateList.value = mine.privatePapers
-  sharedList.value = mine.sharedPapers
-  favoriteList.value = await myLibrary.getFavoritePapers()
-  loading.value = false
+  try {
+    ;[categories.value, tags.value] = await Promise.all([getCategories(), getTags()])
+    const mine = await myLibrary.getMyPapers()
+    privateList.value = mine.privatePapers
+    sharedList.value = mine.sharedPapers
+    favoriteList.value = await myLibrary.getFavoritePapers()
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchAll)
 
@@ -71,8 +77,8 @@ async function handleDelete(paper: Paper) {
     await myLibrary.deleteMyPaper(paper.id)
     ElMessage.success('论文已删除')
     fetchAll()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -83,11 +89,11 @@ async function handleUnshare(paper: Paper) {
       '取消共享',
       { confirmButtonText: '取消共享', cancelButtonText: '再想想', type: 'warning' },
     )
-    await myLibrary.changeReviewStatus(paper.id, 'offline')
+    await myLibrary.changeReviewStatus(paper.id, 'unshare')
     ElMessage.success('已取消共享，论文转为已下架状态')
     fetchAll()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -98,11 +104,11 @@ async function handleResubmit(paper: Paper) {
       '重新提交审核',
       { confirmButtonText: '提交', cancelButtonText: '取消' },
     )
-    await myLibrary.changeReviewStatus(paper.id, 'pending')
+    await myLibrary.changeReviewStatus(paper.id, 'resubmit')
     ElMessage.success('已重新提交审核')
     fetchAll()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -113,7 +119,7 @@ async function viewReviewComment(paper: Paper) {
 }
 
 async function handleUnfavorite(paper: Paper) {
-  await userData.toggleFavorite(paper.id)
+  await userData.toggleFavorite(paper.id, false)
   ElMessage.success('已取消收藏')
   fetchAll()
 }
@@ -136,7 +142,6 @@ function goReader(id: number) {
 }
 
 /* ---------------- 编辑弹窗 ---------------- */
-const tags = mockTags
 const yearOptions = Array.from({ length: 36 }, (_, i) => new Date().getFullYear() - i)
 
 interface CascaderNode {
@@ -146,7 +151,8 @@ interface CascaderNode {
 }
 const categoryTree = computed<CascaderNode[]>(() => {
   const build = (parentId: number | null): CascaderNode[] =>
-    mockCategories
+    categories.value
+      .filter((category) => editingPaper.value?.visibility !== 'shared' || !category.custom)
       .filter((c) => c.parentId === parentId)
       .map((c) => ({ value: c.id, label: c.name, children: build(c.id) }))
   return build(null)
@@ -327,7 +333,10 @@ async function saveEdit() {
                   取消共享
                 </el-button>
                 <el-button
-                  v-if="p.reviewStatus === 'rejected'"
+                  v-if="
+                    p.reviewStatus === 'rejected' ||
+                    (p.reviewStatus === 'offline' && p.offlineReason === 'withdrawn')
+                  "
                   text
                   type="primary"
                   :icon="'RefreshRight'"

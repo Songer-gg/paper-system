@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -19,12 +20,15 @@ const query = reactive({
 
 async function fetchUsers() {
   loading.value = true
-  users.value = await admin.getUsers({
-    keyword: query.keyword,
-    status: query.status,
-    dateRange: query.dateRange,
-  })
-  loading.value = false
+  try {
+    users.value = await admin.getUsers({
+      keyword: query.keyword,
+      status: query.status,
+      dateRange: query.dateRange,
+    })
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchUsers)
 
@@ -53,8 +57,8 @@ async function toggleStatus(u: AdminUser) {
     await admin.setUserStatus(u.id, disabling ? 'disabled' : 'active')
     ElMessage.success(disabling ? '用户已禁用' : '用户已恢复')
     fetchUsers()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -71,8 +75,8 @@ async function resetPassword(u: AdminUser) {
       '重置成功',
       { confirmButtonText: '知道了', type: 'success' },
     )
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 

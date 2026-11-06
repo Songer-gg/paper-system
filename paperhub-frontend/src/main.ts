@@ -7,8 +7,10 @@ import 'element-plus/dist/index.css'
 import '@/styles/index.css'
 import App from './App.vue'
 import router from './router'
+import { reportActionError } from '@/utils/errors'
 
 const app = createApp(App)
+app.config.errorHandler = reportActionError
 
 /* 全局注册 Element Plus 图标，便于通过 <component :is> 动态渲染 */
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {

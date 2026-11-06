@@ -28,8 +28,11 @@ function actionTagType(a: DuplicateRecord['action']): 'danger' | 'success' | 'pr
 
 async function fetchRecords() {
   loading.value = true
-  records.value = await admin.getDuplicateRecords()
-  loading.value = false
+  try {
+    records.value = await admin.getDuplicateRecords()
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchRecords)
 </script>
@@ -68,7 +71,9 @@ onMounted(fetchRecords)
           </template>
         </el-table-column>
         <el-table-column label="处理人" width="90">
-          <template #default="{ row }">{{ getUserName(row.handlerId) }}</template>
+          <template #default="{ row }">{{
+            row.handlerName ?? getUserName(row.handlerId)
+          }}</template>
         </el-table-column>
         <el-table-column prop="handledAt" label="处理时间" width="140" />
       </el-table>

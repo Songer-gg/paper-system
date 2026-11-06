@@ -10,8 +10,11 @@ const action = ref<'all' | 'approved' | 'rejected'>('all')
 
 async function fetchRecords() {
   loading.value = true
-  records.value = await admin.getReviewRecords(action.value)
-  loading.value = false
+  try {
+    records.value = await admin.getReviewRecords(action.value)
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchRecords)
 </script>
@@ -44,7 +47,9 @@ onMounted(fetchRecords)
           </template>
         </el-table-column>
         <el-table-column label="上传者" width="100">
-          <template #default="{ row }">{{ getUserName(row.uploaderId) }}</template>
+          <template #default="{ row }">{{
+            row.uploaderName ?? getUserName(row.uploaderId)
+          }}</template>
         </el-table-column>
         <el-table-column label="审核动作" width="90" align="center">
           <template #default="{ row }">
@@ -63,7 +68,9 @@ onMounted(fetchRecords)
           </template>
         </el-table-column>
         <el-table-column label="审核人" width="90">
-          <template #default="{ row }">{{ getUserName(row.reviewerId) }}</template>
+          <template #default="{ row }">{{
+            row.reviewerName ?? getUserName(row.reviewerId)
+          }}</template>
         </el-table-column>
         <el-table-column prop="reviewedAt" label="审核时间" width="140" />
       </el-table>

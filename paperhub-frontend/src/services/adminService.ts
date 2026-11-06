@@ -1,4 +1,5 @@
-import type { Paper, ReviewStatus } from '@/types/paper'
+import { loadPersonalJSONFor } from '@/utils/personalStorage'
+import type { FavoriteRecord, Note, Paper, ReadingRecord, ReviewStatus } from '@/types/paper'
 import type {
   DuplicatePair,
   DuplicateRecord,
@@ -11,6 +12,9 @@ import { loadJSON, saveJSON } from '@/utils/storage'
 import { mockUsers } from '@/mocks/users'
 import { sharedPapers } from '@/mocks/papers/sharedPapers'
 import { pendingPapers } from '@/mocks/papers/pendingPapers'
+import { privatePapers } from '@/mocks/papers/privatePapers'
+import { seedFavoriteRecords, seedReadingRecords } from '@/mocks/user/reading'
+import { seedNotes } from '@/mocks/user/notes'
 import { mockReviewRecords } from '@/mocks/admin/reviewRecords'
 import { mockDuplicatePairs } from '@/mocks/admin/duplicates'
 import { mockReports } from '@/mocks/admin/reports'
@@ -81,14 +85,21 @@ function allSharedPapers(): Paper[] {
   const overlay = paperOverlay()
   const deleted = loadJSON<number[]>('ph_deleted_papers', [])
   const uploaded = loadJSON<Paper[]>('ph_uploaded_papers', [])
-  const pool = [...sharedPapers, ...pendingPapers, ...uploaded]
+  const pool = [...sharedPapers, ...pendingPapers, ...uploaded].filter(
+    (p) => p.visibility === 'shared',
+  )
   return pool
     .filter((p) => !deleted.includes(p.id))
     .map((p) => ({ ...p, ...(overlay[p.id] ?? {}) }))
 }
 
 function findPaper(id: number): Paper | undefined {
-  return allSharedPapers().find((p) => p.id === id)
+  const deleted = loadJSON<number[]>('ph_deleted_papers', [])
+  const uploaded = loadJSON<Paper[]>('ph_uploaded_papers', [])
+  const paper = [...sharedPapers, ...pendingPapers, ...privatePapers, ...uploaded].find(
+    (p) => p.id === id,
+  )
+  return paper && !deleted.includes(id) ? { ...paper, ...(paperOverlay()[id] ?? {}) } : undefined
 }
 
 /** 修改论文（写共享 overlay，用户端立即联动） */
@@ -105,6 +116,7 @@ export interface AdminUser extends PlatformUser {
   sharedCount: number
   /** 通过审核的贡献数量 */
   contributionCount: number
+  passwordResetAt: string | null
 }
 
 export interface UserQuery {
@@ -123,6 +135,9 @@ export async function getUsers(query: UserQuery): Promise<AdminUser[]> {
       status: userOverlay[u.id]?.status ?? u.status,
       sharedCount: own.length,
       contributionCount: own.filter((p) => p.reviewStatus === 'approved').length,
+      passwordResetAt: passwordResets.includes(u.id)
+        ? (loadJSON<Record<number, string>>(PASSWORD_RESET_KEY + '_at', {})[u.id] ?? null)
+        : null,
     }
   })
   const kw = query.keyword.trim().toLowerCase()
@@ -154,12 +169,54 @@ export async function getUserDetail(id: number): Promise<AdminUser | null> {
     status: userOverlay[id]?.status ?? u.status,
     sharedCount: own.length,
     contributionCount: own.filter((p) => p.reviewStatus === 'approved').length,
+    passwordResetAt: passwordResets.includes(id)
+      ? (loadJSON<Record<number, string>>(PASSWORD_RESET_KEY + '_at', {})[id] ?? null)
+      : null,
   })
 }
 
 export async function getUserPapers(id: number): Promise<Paper[]> {
-  const papers = allSharedPapers().filter((p) => p.uploaderId === id)
+  const uploaded = loadJSON<Paper[]>('ph_uploaded_papers', [])
+  const ids = [
+    ...new Set(
+      [...sharedPapers, ...pendingPapers, ...privatePapers, ...uploaded]
+        .filter((p) => p.uploaderId === id)
+        .map((p) => p.id),
+    ),
+  ]
+  const papers = ids.map(findPaper).filter((p): p is Paper => !!p)
+  appendLog('敏感数据访问', `查看用户 #${id} 的全部论文`)
   return delay(papers, 0)
+}
+
+/** Mock 仅含用户 1 的个人种子数据，其他账号没有预置私人数据。 */
+export async function getUserFavorites(
+  id: number,
+): Promise<(FavoriteRecord & { paper: Paper | null })[]> {
+  appendLog('敏感数据访问', `查看用户 #${id} 的收藏`)
+  const records = loadPersonalJSONFor<FavoriteRecord[]>(
+    id,
+    'ph_favorites',
+    id === 1 ? seedFavoriteRecords : [],
+  )
+  return delay(records.map((record) => ({ ...record, paper: findPaper(record.paperId) ?? null })))
+}
+
+export async function getUserReadingRecords(
+  id: number,
+): Promise<(ReadingRecord & { paper: Paper | null })[]> {
+  appendLog('敏感数据访问', `查看用户 #${id} 的阅读记录`)
+  const records = loadPersonalJSONFor<ReadingRecord[]>(
+    id,
+    'ph_reading',
+    id === 1 ? seedReadingRecords : [],
+  )
+  return delay(records.map((record) => ({ ...record, paper: findPaper(record.paperId) ?? null })))
+}
+
+export async function getUserNotes(id: number): Promise<Note[]> {
+  appendLog('敏感数据访问', `查看用户 #${id} 的阅读笔记`)
+  return delay(loadPersonalJSONFor<Note[]>(id, 'ph_notes', id === 1 ? seedNotes : []))
 }
 
 export async function setUserStatus(id: number, status: UserStatus): Promise<boolean> {
@@ -173,6 +230,9 @@ export async function setUserStatus(id: number, status: UserStatus): Promise<boo
 export async function resetUserPassword(id: number): Promise<string> {
   passwordResets.push(id)
   saveJSON(PASSWORD_RESET_KEY, passwordResets)
+  const resetTimes = loadJSON<Record<number, string>>(PASSWORD_RESET_KEY + '_at', {})
+  resetTimes[id] = now()
+  saveJSON(PASSWORD_RESET_KEY + '_at', resetTimes)
   const name = mockUsers.find((u) => u.id === id)?.name ?? `用户 ${id}`
   appendLog('重置密码', name)
   return delay('paper@2026', 0)
@@ -206,7 +266,7 @@ export async function getSharedPapers(query: PaperQuery): Promise<Paper[]> {
   }
   if (query.categoryId) {
     const descendants = getCategoryDescendantIds(query.categoryId)
-    list = list.filter((p) => descendants.includes(p.categoryId))
+    list = list.filter((p) => p.categoryId !== null && descendants.includes(p.categoryId))
   }
   if (query.status !== 'all') {
     list = list.filter((p) => p.reviewStatus === query.status)
@@ -215,21 +275,29 @@ export async function getSharedPapers(query: PaperQuery): Promise<Paper[]> {
 }
 
 export async function getPaperById(id: number): Promise<Paper | null> {
+  if (findPaper(id)?.visibility === 'private') appendLog('敏感数据访问', `查看私有论文 #${id}`)
   return delay(findPaper(id) ?? null, 0)
 }
 
 export async function offlinePaper(id: number): Promise<boolean> {
   const p = findPaper(id)
-  if (!p) return delay(false, 0)
-  patchPaper(id, { reviewStatus: 'offline' })
+  if (!p || p.visibility !== 'shared' || p.reviewStatus !== 'approved')
+    throw new Error('仅可下架已通过的共享论文')
+  patchPaper(id, { reviewStatus: 'offline', offlineReason: 'moderation' })
   appendLog('论文下架', `《${p.title}》`)
   return delay(true, 0)
 }
 
 export async function restorePaper(id: number): Promise<boolean> {
   const p = findPaper(id)
-  if (!p) return delay(false, 0)
-  patchPaper(id, { reviewStatus: 'approved' })
+  if (
+    !p ||
+    p.visibility !== 'shared' ||
+    p.reviewStatus !== 'offline' ||
+    p.offlineReason === 'withdrawn'
+  )
+    throw new Error('用户撤回的资源不能由管理员恢复')
+  patchPaper(id, { reviewStatus: 'approved', offlineReason: undefined })
   appendLog('论文恢复', `《${p.title}》`)
   return delay(true, 0)
 }
@@ -285,11 +353,25 @@ async function review(paperId: number, action: 'approved' | 'rejected', comment:
   return true
 }
 
-export async function approvePaper(paperId: number, comment: string): Promise<boolean> {
+export async function approvePaper(
+  paperId: number,
+  comment: string,
+  copyrightConfirmed: boolean,
+): Promise<boolean> {
+  const paper = findPaper(paperId)
+  if (!copyrightConfirmed) throw new Error('请确认版权声明')
+  if (!paper || paper.visibility !== 'shared' || paper.reviewStatus !== 'pending')
+    throw new Error('仅可审核待审核共享论文')
+  if ((await getDuplicatePairs('pending')).some((pair) => pair.newPaperId === paperId))
+    throw new Error('请先处理疑似重复论文')
   return review(paperId, 'approved', comment)
 }
 
 export async function rejectPaper(paperId: number, comment: string): Promise<boolean> {
+  const paper = findPaper(paperId)
+  if (!paper || paper.visibility !== 'shared' || paper.reviewStatus !== 'pending')
+    throw new Error('仅可审核待审核共享论文')
+  if (!comment.trim()) throw new Error('请填写驳回原因')
   return review(paperId, 'rejected', comment)
 }
 
@@ -329,6 +411,8 @@ async function handleDuplicate(
 ) {
   const pair = mockDuplicatePairs.find((p) => p.id === pairId)
   if (!pair) return false
+  if ((duplicateOverlay[pairId]?.status ?? pair.status) !== 'pending')
+    throw new Error('该重复对已经处理')
   duplicateOverlay[pairId] = { status: action, handledAt: now(), handlerNote: note }
   saveJSON(DUPLICATE_OVERLAY_KEY, duplicateOverlay)
 
@@ -424,7 +508,7 @@ export async function resolveReport(
   if (offlinePaperToo) {
     const p = findPaper(report.paperId)
     if (p) {
-      patchPaper(report.paperId, { reviewStatus: 'offline' })
+      patchPaper(report.paperId, { reviewStatus: 'offline', offlineReason: 'moderation' })
       appendLog('论文下架', `《${p.title}》（举报处理）`)
     }
   }

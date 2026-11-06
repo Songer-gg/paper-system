@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -13,12 +14,13 @@ const auth = useAuthStore()
 const loading = ref(true)
 const profile = ref<MyProfile | null>(null)
 
-async function fetchProfile(uploadedCount?: number) {
+async function fetchProfile() {
   loading.value = true
-  const count =
-    uploadedCount ?? JSON.parse(localStorage.getItem('ph_uploaded_papers') ?? '[]').length
-  profile.value = await profileService.getMyProfile(count)
-  loading.value = false
+  try {
+    profile.value = await profileService.getMyProfile()
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchProfile)
 
@@ -95,12 +97,12 @@ async function handleAvatarChange(file: UploadFile) {
     ElMessage.error('头像图片不能超过 2 MB')
     return
   }
-  const reader = new FileReader()
-  reader.onload = async () => {
-    profile.value = await profileService.updateAvatar(String(reader.result))
+  try {
+    profile.value = await profileService.updateAvatar(raw)
     ElMessage.success('头像已更新')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '头像更新失败')
   }
-  reader.readAsDataURL(raw)
 }
 
 /* ---------------- 修改密码 ---------------- */
@@ -116,7 +118,7 @@ const pwdRules: FormRules = {
   oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于 6 位', trigger: 'blur' },
+    { min: 8, message: '密码长度不能少于 8 位', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
@@ -164,8 +166,8 @@ async function handleLogout() {
     auth.logout()
     ElMessage.success('已安全退出')
     router.push('/login')
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 </script>

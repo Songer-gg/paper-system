@@ -30,10 +30,11 @@ export interface Paper {
   journal: string
   year: number
   keywords: string[]
-  categoryId: number
+  categoryId: number | null
   tagIds: number[]
   visibility: PaperVisibility
   uploaderId: number
+  uploaderName?: string
   uploadedAt: string
   downloads: number
   fileSizeMB: number
@@ -42,24 +43,34 @@ export interface Paper {
   /** 共享论文专用 */
   reviewStatus?: ReviewStatus
   reviewComment?: string
+  offlineReason?: 'withdrawn' | 'moderation'
+  copyrightAgreed?: boolean
+  fileSha256?: string
 }
 
 export interface Category {
   id: number
   name: string
   parentId: number | null
+  custom?: boolean
+  ownerId?: number | null
+  paperCount?: number
 }
 
 export interface Tag {
   id: number
   name: string
   color: string
+  custom?: boolean
+  ownerId?: number | null
+  paperCount?: number
 }
 
 export interface ReadingRecord {
   paperId: number
   status: ReadingStatus
   lastReadAt: string
+  addedAt?: string
 }
 
 export interface FavoriteRecord {
@@ -71,6 +82,8 @@ export interface Note {
   id: number
   title: string
   paperId: number
+  paperTitle?: string
+  paperAvailable?: boolean
   content: string
   createdAt: string
   updatedAt: string

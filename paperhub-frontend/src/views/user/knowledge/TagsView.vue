@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -31,13 +32,17 @@ const papersLoading = ref(false)
 
 async function fetchTags() {
   loading.value = true
-  tags.value = await knowledge.getTags()
-  counts.value = knowledge.countPapersByTag()
-  loading.value = false
-  if (selectedId.value && tags.value.some((t) => t.id === selectedId.value)) {
-    await loadPapers(selectedId.value)
-  } else {
-    selectedId.value = null
+  try {
+    tags.value = await knowledge.getTags()
+    counts.value = Object.fromEntries(tags.value.map((tag) => [tag.id, tag.paperCount ?? 0]))
+
+    if (selectedId.value && tags.value.some((t) => t.id === selectedId.value)) {
+      await loadPapers(selectedId.value)
+    } else {
+      selectedId.value = null
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -119,8 +124,8 @@ async function handleDelete(tag: Tag) {
     ElMessage.success('标签已删除')
     if (selectedId.value === tag.id) selectedId.value = null
     fetchTags()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 </script>
@@ -162,7 +167,7 @@ async function handleDelete(tag: Tag) {
               <div class="tag-head">
                 <span class="tag-dot" :style="{ background: t.color }" />
                 <span class="tag-name">{{ t.name }}</span>
-                <span class="tag-actions" @click.stop>
+                <span v-if="t.custom" class="tag-actions" @click.stop>
                   <el-icon class="tag-action" @click="openEdit(t)"><EditPen /></el-icon>
                   <el-icon class="tag-action danger" @click="handleDelete(t)"><Delete /></el-icon>
                 </span>

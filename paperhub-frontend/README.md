@@ -4,17 +4,17 @@
 
 ## 技术栈
 
-| 类别 | 选型 |
-| --- | --- |
-| 框架 | Vue 3（Composition API + `<script setup>`） |
-| 语言 | TypeScript |
-| 构建 | Vite 8（rolldown） |
-| 路由 | Vue Router 4 |
-| 状态管理 | Pinia |
-| UI 组件库 | Element Plus（中文语言包 + 全局图标注册） |
-| 图表 | ECharts 6（按需分包） |
-| HTTP | Axios（为第二阶段接入后端预留） |
-| 代码质量 | vue-tsc（`-b` 构建模式类型检查）、ESLint 9（flat config）、Prettier |
+| 类别      | 选型                                                                |
+| --------- | ------------------------------------------------------------------- |
+| 框架      | Vue 3（Composition API + `<script setup>`）                         |
+| 语言      | TypeScript                                                          |
+| 构建      | Vite 8（rolldown）                                                  |
+| 路由      | Vue Router 4                                                        |
+| 状态管理  | Pinia                                                               |
+| UI 组件库 | Element Plus（中文语言包 + 全局图标注册）                           |
+| 图表      | ECharts 6（按需分包）                                               |
+| HTTP      | Axios（为第二阶段接入后端预留）                                     |
+| 代码质量  | vue-tsc（`-b` 构建模式类型检查）、ESLint 9（flat config）、Prettier |
 
 ## 快速开始
 
@@ -42,10 +42,10 @@ npm run preview      # 预览生产构建产物
 
 登录页右上角可切换登录角色。
 
-| 角色 | 用户名 | 密码 | 身份 |
-| --- | --- | --- | --- |
-| 普通用户 | `researcher` | `123456` | 林知远（用户 ID 1） |
-| 管理员 | `admin` | `admin123` | 平台管理员（用户 ID 101） |
+| 角色     | 用户名       | 密码       | 身份                      |
+| -------- | ------------ | ---------- | ------------------------- |
+| 普通用户 | `researcher` | `123456`   | 林知远（用户 ID 1）       |
+| 管理员   | `admin`      | `admin123` | 平台管理员（用户 ID 101） |
 
 ## 目录结构
 
@@ -86,4 +86,8 @@ src/
 
 ## 与后端对接说明
 
-第二阶段接入 Spring Boot 后端时，仅需将 `src/services/` 下的模拟实现替换为 `src/api/` 中的 Axios 请求，页面层无需改动（服务层函数签名已按异步 API 设计）。
+第二阶段保持 `src/services/` 的页面入口，由真实适配器绑定 ApiClient，处理登录 token、缓存选择器、文件流和错误空态。API 已提供无框架依赖的 `paperhub-api/ts/fetch-client.ts`，也可以依接口使用现有 Axios 实现。不能直接替换全部 import 后假定零改动。
+
+现行规则见 [BUSINESS_RULES.md](../BUSINESS_RULES.md)，分批计划见 [后端开发计划](../paperhub-back/BACKEND_DEVELOPMENT_PLAN.md)。管理员已获授权查看全部论文和个人数据，敏感读取必须审计；本轮 Mock 只演示该交互，真实安全控制由 Java 实现。
+
+回归：在工作区运行 `node paperhub-api/tests/contracts.cjs`；SQL 在独立临时实例运行 `python -B paperhub-api/tests/test_schema.py --bin-dir "MySQL安装目录/bin"`，不连接已有数据库。

@@ -17,13 +17,16 @@ const status = ref<'all' | 'pending' | 'resolved'>('pending')
 
 async function fetchReports() {
   loading.value = true
-  const [list, papers] = await Promise.all([
-    admin.getReports(status.value),
-    admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
-  ])
-  paperMap.value = new Map(papers.map((p) => [p.id, p]))
-  reports.value = list
-  loading.value = false
+  try {
+    const [list, papers] = await Promise.all([
+      admin.getReports(status.value),
+      admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
+    ])
+    paperMap.value = new Map(papers.map((p) => [p.id, p]))
+    reports.value = list
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchReports)
 
@@ -112,7 +115,9 @@ function goRecords() {
             </template>
           </el-table-column>
           <el-table-column label="举报人" width="90">
-            <template #default="{ row }">{{ getUserName(row.reporterId) }}</template>
+            <template #default="{ row }">{{
+              row.reporterName ?? getUserName(row.reporterId)
+            }}</template>
           </el-table-column>
           <el-table-column label="举报原因" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">{{ row.reason }}</template>

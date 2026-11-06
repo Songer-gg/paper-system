@@ -1,208 +1,70 @@
-# PaperHub 数据库 ER 设计（MySQL 8）
+# PaperHub ER 与持久化说明 v1.1
 
-> 版本：v1.0 ｜ 依据：`paperhub-api/api-spec.md`（64 端点）与 `ts/types.ts` 实体定义
-> 引擎：InnoDB ｜ 字符集：utf8mb4 ｜ 对应后端：Java 8 + Spring Boot + MyBatis-Plus
+MySQL >=8.0.16，InnoDB/utf8mb4；12张物理表。SQL结构以schema.sql为准，演示账号/样例分离至seed-demo.sql。新结构没有自动删库；已有库需要独立增量迁移。
 
-## 一、ER 总图
+## 实体关系
 
 ```mermaid
 erDiagram
-    USER ||--o{ PAPER : "上传 (uploader_id)"
-    USER ||--o{ CATEGORY : "自建 (owner_id, 可空)"
-    USER ||--o{ TAG : "自建 (owner_id, 可空)"
-    USER ||--o{ FAVORITE : "收藏"
-    USER ||--o{ READING_RECORD : "阅读管理"
-    USER ||--o{ NOTE : "撰写笔记"
-    USER ||--o{ REVIEW_RECORD : "审核 (reviewer_id)"
-    USER ||--o{ DUPLICATE_PAIR : "处理 (handler_id)"
-    USER ||--o{ REPORT : "举报 (reporter_id / handler_id)"
-    USER ||--o{ OPERATION_LOG : "操作留痕"
-
-    CATEGORY |o--o{ CATEGORY : "父子 (parent_id)"
-    CATEGORY ||--o{ PAPER : "归类 (category_id)"
-    PAPER ||--o{ PAPER_TAG : ""
-    TAG ||--o{ PAPER_TAG : ""
-    PAPER ||--o{ FAVORITE : ""
-    PAPER ||--o{ READING_RECORD : ""
-    PAPER ||--o{ NOTE : ""
-    PAPER ||--o{ REVIEW_RECORD : ""
-    PAPER ||--o{ OPERATION_LOG : "target 可指向论文"
-
-    PAPER ||--o{ DUPLICATE_PAIR : "old_paper_id"
-    PAPER ||--o{ DUPLICATE_PAIR : "new_paper_id"
-    PAPER ||--o{ REPORT : "被举报"
-
-    USER {
-        bigint id PK
-        varchar username UK
-        varchar password "BCrypt"
-        varchar name
-        varchar email UK
-        enum role "user|admin"
-        enum status "active|disabled"
-        varchar avatar
-        datetime password_reset_at "可空"
-        datetime registered_at
-    }
-    PAPER {
-        bigint id PK
-        varchar title "idx"
-        json authors
-        text abstract
-        varchar doi "idx"
-        varchar journal
-        smallint year
-        json keywords
-        bigint category_id FK
-        enum visibility "private|shared"
-        bigint uploader_id FK
-        datetime uploaded_at
-        int downloads
-        decimal file_size_mb
-        smallint page_count
-        enum review_status "pending|approved|rejected|offline"
-        varchar review_comment "可空"
-        varchar file_path "服务器存储路径"
-        tinyint copyright_agreed
-        varchar link "可空"
-    }
-    CATEGORY {
-        bigint id PK
-        varchar name
-        bigint parent_id "可空=根"
-        varchar description "描述"
-        tinyint custom "1=用户自建"
-        bigint owner_id "可空=平台级"
-        datetime created_at
-    }
-    TAG {
-        bigint id PK
-        varchar name
-        varchar color
-        tinyint custom
-        bigint owner_id "可空=平台级"
-        datetime created_at
-    }
-    PAPER_TAG {
-        bigint paper_id PK,FK
-        bigint tag_id PK,FK
-    }
-    FAVORITE {
-        bigint id PK
-        bigint user_id FK
-        bigint paper_id FK
-        datetime favorited_at
-    }
-    READING_RECORD {
-        bigint id PK
-        bigint user_id FK
-        bigint paper_id FK
-        enum status "unread|reading|read|paused"
-        datetime added_at
-        datetime last_read_at
-    }
-    NOTE {
-        bigint id PK
-        bigint user_id FK
-        bigint paper_id FK
-        varchar title
-        text content
-        datetime created_at
-        datetime updated_at
-    }
-    REVIEW_RECORD {
-        bigint id PK
-        bigint paper_id FK
-        bigint reviewer_id FK
-        enum action "approved|rejected"
-        varchar comment
-        datetime reviewed_at
-    }
-    DUPLICATE_PAIR {
-        bigint id PK
-        bigint old_paper_id FK
-        bigint new_paper_id FK
-        decimal similarity
-        varchar reason
-        enum status "pending|confirmed|distinct|linked"
-        bigint handler_id "可空"
-        varchar handler_note "可空"
-        datetime handled_at "可空"
-    }
-    REPORT {
-        bigint id PK
-        bigint paper_id FK
-        bigint reporter_id FK
-        enum type "copyright|content|duplicate|other"
-        varchar reason
-        enum status "pending|resolved"
-        varchar result "可空"
-        bigint handler_id "可空"
-        datetime handled_at "可空"
-    }
-    OPERATION_LOG {
-        bigint id PK
-        bigint user_id "可空(系统)"
-        varchar user_name "冗余快照"
-        varchar action
-        varchar target
-        enum result "成功|失败"
-        datetime time
-    }
+  USER ||--o{ PAPER : uploads
+  USER ||--o{ CATEGORY : owns
+  USER ||--o{ TAG : owns
+  CATEGORY |o--o{ CATEGORY : parent
+  CATEGORY |o--o{ PAPER : classifies
+  PAPER ||--o{ PAPER_TAG : tagged
+  TAG ||--o{ PAPER_TAG : used
+  USER ||--o{ FAVORITE : saves
+  PAPER ||--o{ FAVORITE : referenced
+  USER ||--o{ READING_RECORD : reads
+  PAPER ||--o{ READING_RECORD : referenced
+  USER ||--o{ NOTE : writes
+  PAPER ||--o{ NOTE : referenced
+  PAPER ||--o{ REVIEW_RECORD : reviewed
+  PAPER ||--o{ DUPLICATE_PAIR : compared
+  PAPER ||--o{ REPORT : reported
+  USER ||--o{ OPERATION_LOG : audited
 ```
 
-## 二、表清单与职责
+## 表及契约映射
 
-| # | 表 | 对应端点组 | 说明 |
-| --- | --- | --- | --- |
-| T1 | `user` | A1、P1–P4、M2–M6 | 普通用户与管理员同表，`role` 区分 |
-| T2 | `paper` | U1–U9、M7–M14 | 核心实体；`file_path` 存服务器文件路径（第一阶段文件仍走本地磁盘，不入库） |
-| T3 | `category` | K1–K6 | 树形（`parent_id` 自引用），`custom=1` 为用户自建 |
-| T4 | `tag` + `paper_tag` | K7–K11 | 多对多关联表 |
-| T5 | `favorite` | R1–R2 | UK(user_id, paper_id) 幂等收藏 |
-| T6 | `reading_record` | R3–R5 | UK(user_id, paper_id)，toggle/patch 天然幂等 |
-| T7 | `note` | R6–R9 | 仅本人可见（应用层强制 user_id 过滤） |
-| T8 | `review_record` | M15 | 每次审核一条流水，审核状态冗余在 paper 表 |
-| T9 | `duplicate_pair` | M16–M20 | 一对多查重结果；处理动作同时写 duplicate 处理记录语义 |
-| T10 | `report` | M21–M23 | 举报单；`status` 区分待处理/已处理（处理记录页查询 `resolved`） |
-| T11 | `operation_log` | M24 | 服务端写操作自动留痕；`user_name` 冗余防用户被删后日志失义 |
+| 表             | 接口                 | 关键字段及映射                                                                                                        |
+| -------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| user           | A1/P1–P4/M2–M6       | BCrypt密码、token_version、password_reset_at；管理员读取不返回密码                                                    |
+| category       | K1–K6                | description→desc，owner_scope/parent_scope生成列解决NULL唯一性                                                        |
+| tag            | K7–K11               | owner_scope+name唯一，自有与平台分离                                                                                  |
+| paper          | U1–U12/M4/M7–M14     | JSON数组、file_size_mb→fileSizeMB、deleted_at、version、offline_reason                                                |
+| paper_tag      | U3/U7/K7/K10/K11     | 联合主键；tagIds由关联查询组成，返回数组                                                                              |
+| favorite       | R1/R2/M26            | (user_id,paper_id)唯一；只保证行唯一，toggle不是幂等                                                                  |
+| reading_record | R3–R5/M27/P5/P6      | (user_id,paper_id)唯一；added_at不因更新重置                                                                          |
+| note           | R6–R9/M28            | title最大300，paper_title关联时快照，失效论文仍保留笔记                                                               |
+| review_record  | M13–M15              | paper_title/uploader_id审核快照，只追加                                                                               |
+| duplicate_pair | M16–M20              | original_paper_id/new_paper_id、两个标题快照、doi_match/title_similarity/file_hash_match/submitted_at；状态与前端相同 |
+| report         | M21–M23              | created_at、paper_title快照、处理人/时间/结果                                                                         |
+| operation_log  | M24及写操作/敏感读取 | user_id/user_name/action/target/result/time；target明确用户和资源ID，不含正文                                         |
 
-> 说明：前端 mock 的 `DuplicateRecord`（处理记录）由 `duplicate_pair.status != 'pending'` 的行直接映射（含 action 推导：confirmed→confirm 等），不设独立表。
+## 约束与生命周期
 
-## 三、关键设计决策
+- paper逻辑删除：设置deleted_at，不物理DELETE；个人记录与审核/举报/重复对保留。paper关联外键使用RESTRICT，避免意外硬删除。
+- 私有review_status=NULL；共享必须在pending/approved/rejected/offline中，offline同时要求withdrawn或moderation。生成列和CHECK不能由DTO直接写入。
+- shared_doi_key/shared_file_key只在shared、未删除、非rejected时取规范化DOI/真实SHA-256。UNIQUE并发兜底；私有可重复，待审和下架仍占用共享标识。
+- doi_normalized由应用去前缀/trim/转小写；上传哈希由实际文件计算。演示数据没有PDF，不伪造哈希；真实服务拒绝缺文件的上传与审核。
+- 分类唯一键=(owner_scope,parent_scope,name)；标签=(owner_scope,name)。owner_id NULL代表平台，生成scope=0；普通ID从1起。custom与owner一致性CHECK。
+- 分类parent_id为自引用RESTRICT，Service先锁子树检查归属、解除论文关联，再从叶到根删除；含他人自有项则拒绝。paper.category_id SET NULL。生成列基列不配置级联外键，以兼容MySQL。
+- 重复对仅允许pending→终态一次；同original/new组合唯一。终态行直接形成处理记录，不假装可保存同一对多次覆盖历史；需要重新比对的新版本必须使用新的资源记录。
+- report/review/duplicate使用快照展示，更新原论文不改历史。文件清理在事务提交后执行，可重试；权限失效不依赖文件是否清理成功。
 
-1. **审核状态冗余 + 流水分离**：`paper.review_status` 承载当前态（列表过滤快），`review_record` 只追加（历史审计）。approve/reject 同时更新两者，事务保证。
-2. **分类/标签双轨制**：`owner_id IS NULL` 为平台级（管理员可操作），`owner_id = 用户` 为自建（仅本人+管理员可操作）。UK 约束：平台级 `(name, parent_id, owner_id NULL)` 与自建 `(name, parent_id, owner_id)` 重名各不冲突——用函数索引或应用层校验，DDL 中以应用层校验为准（MySQL 唯一索引对 NULL 不去重，行为恰好一致）。
-3. **防环**：分类移动的环检测在服务端应用层完成（DFS），不入 SQL 约束。
-4. **级联规则**（与前端已验证行为一致）：
-   - 删除论文 → `favorite`/`reading_record`/`note`/`paper_tag`/`review_record` 关联行 `ON DELETE CASCADE`；`duplicate_pair`/`report` 中被引用时**应用层拦截**（提示先处理举报/重复对）或置 NULL，DDL 采用 `ON DELETE SET NULL` + 冗余标题列。
-   - 删除用户 → 论文不删（`uploader_id` 保留），仅禁用账号（`status=disabled`），与 M5 行为一致。
-5. **JSON 字段**：`authors`、`keywords` 用 MySQL 8 JSON 类型（前端为字符串数组，MyBatis TypeHandler 映射）。
-6. **下载计数**：`POST /papers/{id}/download` 时 `downloads = downloads + 1`（原子 UPDATE，不依赖读-改-写）。
-7. **密码**：BCrypt 存储；`password_reset_at` 记录管理员重置时间（映射 `AdminUser.passwordResetAt`，替代前端 mock 的 `isPasswordReset`）。
-8. **时间**：所有 `*_at` 用 `DATETIME`，应用层格式化为 `yyyy-MM-dd HH:mm:ss`；不依赖 MySQL 时区函数。
+## 事务
 
-## 四、索引设计（查询热路径）
+上传/编辑及标签、审核及流水、重复处理及驳回、举报及下架、逻辑删除、分类子树变更、账号管理及操作日志按业务事务提交。并发用条件UPDATE/version或行锁；约束冲突转换1004。
 
-| 表 | 索引 | 支撑的查询 |
-| --- | --- | --- |
-| paper | `idx_status_visibility(review_status, visibility)` | U10 共享库只出 approved+shared；M7/M12 状态过滤 |
-| paper | `idx_title(title)`、`idx_doi(doi)` | U10 模糊搜索（前缀走索引，中缀走全文检索扩展）、U6/M7 DOI 查重 |
-| paper | `idx_uploader(uploader_id)`、`idx_category(category_id)`、`idx_year(year)` | U1 我的论文、K6 分类论文、年份筛选 |
-| user | `uk_username(username)`、`uk_email(email)`、`idx_name_role_status(name, role, status)` | A1 登录、M2 关键字过滤 |
-| note | `idx_user_paper(user_id, paper_id)` | R6 按论文过滤 |
-| operation_log | `idx_time(time)`、`idx_action(action)` | M24 过滤 |
-| review_record / report / duplicate_pair | `idx_paper(paper_id)`、`idx_status(status)` | 各列表页 |
+管理员查看私有论文、PDF、他人收藏/阅读/笔记先写独立审计事务，失败不返回敏感内容。管理员拥有用户确认的最高读取权限，普通用户仍按user_id隔离。
 
-## 五、初始化数据
+## 查询与索引
 
-`schema.sql` 末尾含演示数据初始化（对应前端 mock）：
+paper基础筛选索引、共享上传时间/下载量组合索引，paper_tag按tag反查，note按user/paper，日志按time/action。全文索引仅title/abstract，不等于U10全部字段的搜索；作者/关键词JSON及期刊/DOI采用参数化查询，正确性先于优化。排序、总数和多标签必须对论文去重。
 
-- 用户：`researcher`（id=1，林知远，普通用户）、`admin`（id=101，平台管理员）；密码分别为 `123456`、`admin123` 的 BCrypt 值（部署时以真实 BCrypt 替换占位）
-- 平台级分类树、标签若干
-- 共享论文（approved）+ 待审核论文（pending）若干，`uploader_id` 对应 mock 用户
+统计和名字为派生字段：uploaderName关联user.name；paperCount按调用者可见性聚合；月度阅读按当前last_read_at归月。M25来自应用配置，不要求额外设置表。
 
-## 六、落地文件
+## 迁移与验证
 
-- [schema.sql](./schema.sql)：MySQL 8 可执行 DDL（建库 `paperhub` + 11 张表 + 索引 + 演示数据），`utf8mb4_general_ci`
-- 后续 MyBatis-Plus 实体类字段与本设计一一对应，枚举字段用字符串存储（便于排查），不用 MySQL ENUM 之外的数字编码
+当前未部署后端，不提供未经验证的在用库迁移。schema.sql仅空库；seed-demo.sql含公开演示账号，仅开发手动导入。存量库升级先备份、检查重复、回填标题快照与DOI规范值，再加约束；不能用重跑建表替代迁移。

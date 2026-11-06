@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as knowledge from '@/services/knowledgeService'
@@ -15,16 +16,19 @@ const counts = ref<Record<number, number>>({})
 
 async function fetchAll() {
   loading.value = true
-  const [list] = await Promise.all([knowledge.getTags()])
-  tags.value = list
-  /* 使用数量统计改为读取共享池 */
-  const papers = await fetchSharedPapers()
-  const count: Record<number, number> = {}
-  for (const p of papers) {
-    for (const tid of p.tagIds) count[tid] = (count[tid] ?? 0) + 1
+  try {
+    const [list] = await Promise.all([knowledge.getTags()])
+    tags.value = list
+    /* 使用数量统计改为读取共享池 */
+    const papers = await fetchSharedPapers()
+    const count: Record<number, number> = {}
+    for (const p of papers) {
+      for (const tid of p.tagIds) count[tid] = (count[tid] ?? 0) + 1
+    }
+    counts.value = count
+  } finally {
+    loading.value = false
   }
-  counts.value = count
-  loading.value = false
 }
 
 /** 拉取全平台共享论文（含各审核状态），供标签计数 */
@@ -126,8 +130,8 @@ async function removeTag(t: Tag) {
       selectedPapers.value = []
     }
     fetchAll()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 </script>

@@ -1,28 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile, UploadInstance } from 'element-plus'
-import type { Paper } from '@/types/paper'
+import type { Category, Paper, Tag } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
 import * as userData from '@/services/userDataService'
-import { mockCategories } from '@/mocks/categories'
-import { mockTags } from '@/mocks/tags'
+import { getCategories, getTags } from '@/services/knowledgeService'
 
 const router = useRouter()
+const categories = ref<Category[]>([])
+const tags = ref<Tag[]>([])
 
 /* ---------------- 文件区（模拟上传） ---------------- */
 const uploadRef = ref<UploadInstance>()
 interface SimFile {
+  raw: File
   name: string
   sizeMB: number
   pageCount: number
+  sha256: string
 }
 const file = ref<SimFile | null>(null)
 const uploadProgress = ref(0)
 const uploading = ref(false)
 
-function handleFileChange(uploadFile: UploadFile) {
+async function handleFileChange(uploadFile: UploadFile) {
+  const selection = ++fileSelection
+  clearInterval(timer)
+  file.value = null
+  uploadProgress.value = 0
+  uploading.value = false
   const raw = uploadFile.raw
   if (!raw) return
   if (!raw.name.toLowerCase().endsWith('.pdf')) {
@@ -31,21 +39,43 @@ function handleFileChange(uploadFile: UploadFile) {
     return
   }
   const sizeMB = Math.round((raw.size / 1024 / 1024) * 10) / 10
-  if (sizeMB > 100) {
+  if (raw.size === 0 || raw.size > 100 * 1024 * 1024) {
     ElMessage.error('文件大小不能超过 100 MB')
     uploadRef.value?.clearFiles()
     return
   }
-  file.value = {
-    name: raw.name,
-    sizeMB: sizeMB || 0.1,
-    pageCount: Math.max(4, Math.round(sizeMB * 14) + 6),
+  try {
+    const buffer = await raw.arrayBuffer()
+    if (!new TextDecoder().decode(buffer.slice(0, 5)).startsWith('%PDF-')) {
+      throw new Error('文件内容不是有效的 PDF')
+    }
+    const digest = await crypto.subtle.digest('SHA-256', buffer)
+    if (selection !== fileSelection) return
+    file.value = {
+      raw,
+      name: raw.name,
+      sizeMB: sizeMB || 0.1,
+      pageCount: Math.max(4, Math.round(sizeMB * 14) + 6),
+      sha256: Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
+        '',
+      ),
+    }
+    startSimulatedUpload()
+  } catch (error) {
+    if (selection !== fileSelection) return
+    uploadRef.value?.clearFiles()
+    ElMessage.error(error instanceof Error ? error.message : '无法读取文件，请重新选择')
   }
-  startSimulatedUpload()
 }
+
+let fileSelection = 0
 
 /* 模拟上传进度条 */
 let timer: ReturnType<typeof setInterval> | undefined
+onUnmounted(() => {
+  fileSelection++
+  clearInterval(timer)
+})
 function startSimulatedUpload() {
   uploading.value = true
   uploadProgress.value = 0
@@ -61,6 +91,7 @@ function startSimulatedUpload() {
 }
 
 function removeFile() {
+  fileSelection++
   clearInterval(timer)
   file.value = null
   uploadProgress.value = 0
@@ -94,7 +125,8 @@ interface CascaderNode {
 }
 const categoryTree = computed<CascaderNode[]>(() => {
   const build = (parentId: number | null): CascaderNode[] =>
-    mockCategories
+    categories.value
+      .filter((category) => form.visibility === 'private' || !category.custom)
       .filter((c) => c.parentId === parentId)
       .map((c) => ({ value: c.id, label: c.name, children: build(c.id) }))
   return build(null)
@@ -115,6 +147,7 @@ const copyrightRule = computed(() => form.visibility === 'shared' && !copyrightA
 const draftInfo = ref<string | null>(null)
 
 onMounted(async () => {
+  ;[categories.value, tags.value] = await Promise.all([getCategories(), getTags()])
   const draft = myLibrary.loadDraft()
   if (!draft) return
   draftInfo.value = draft.savedAt
@@ -174,7 +207,7 @@ function goPaper(id: number) {
 }
 
 async function favoriteDup(paper: Paper) {
-  await userData.toggleFavorite(paper.id)
+  await userData.toggleFavorite(paper.id, true)
   ElMessage.success('已收藏该论文')
 }
 
@@ -182,7 +215,7 @@ async function favoriteDup(paper: Paper) {
 async function doSubmit() {
   submitting.value = true
   try {
-    const paper = await myLibrary.submitPaper({
+    const paper = await myLibrary.submitPaper(file.value!.raw, {
       title: form.title,
       authors: form.authors.split(/[,，、\s]+/).filter(Boolean),
       abstract: form.abstract,
@@ -193,6 +226,9 @@ async function doSubmit() {
       categoryId: form.categoryId!,
       tagIds: form.tagIds,
       visibility: form.visibility,
+      link: form.link,
+      copyrightAgreed: copyrightAgreed.value,
+      fileSha256: file.value!.sha256,
       fileName: file.value!.name,
       fileSizeMB: file.value!.sizeMB,
       pageCount: file.value!.pageCount,
@@ -205,6 +241,8 @@ async function doSubmit() {
       ElMessage.success(`《${paper.title}》已提交，等待管理员审核`)
       router.push('/user/library/mine?tab=shared')
     }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '上传失败，请重试')
   } finally {
     submitting.value = false
   }
@@ -231,7 +269,7 @@ async function handleSubmit() {
     const result = await myLibrary.checkDuplicate({
       doi: form.doi,
       title: form.title,
-      fileName: file.value.name,
+      fileSha256: file.value.sha256,
     })
     if (result.level === 'doi' || result.level === 'file') {
       dupResult.value = result
@@ -411,7 +449,12 @@ function handleCancel() {
                 placeholder="选择标签（可多选）"
                 style="width: 100%"
               >
-                <el-option v-for="t in mockTags" :key="t.id" :value="t.id" :label="t.name" />
+                <el-option
+                  v-for="t in tags.filter((tag) => form.visibility === 'private' || !tag.custom)"
+                  :key="t.id"
+                  :value="t.id"
+                  :label="t.name"
+                />
               </el-select>
             </el-form-item>
           </el-form>

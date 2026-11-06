@@ -1,48 +1,25 @@
-# PaperHub API 中间层接口（契约层）
+# PaperHub API 契约 v1.1
 
-本目录是前端与后端之间的**正式 RESTful API 契约**，依据第一阶段已完成的前端页面与 Service 层签名反向设计。第二阶段 Java 8 + Spring Boot 后端与 MySQL 8 数据库设计必须遵循本契约实现。
+后端以已完成的 Vue 3 页面和实际 Service 消费字段为基础实现。Mock 是交互原型，不是真实权限、文件存储或身份认证。
 
-## 目录结构
+## 现行依据
 
-```
-paperhub-api/
-├── README.md        # 本文件：定位、约定速览、前端接入指南
-├── api-spec.md       # RESTful API 设计文档（端点清单、入参出参、权限、错误码）★核心
-└── ts/               # TypeScript 代码级契约（可直接编译，无运行时依赖）
-    ├── types.ts      # 全部 DTO / 枚举定义
-    ├── http.ts       # 统一响应包、错误码、分页约定、ApiClient 接口
-    └── modules/      # 按业务模块拆分的请求函数签名
-        ├── auth.ts           # 登录 / 会话
-        ├── library.ts        # 我的论文库 / 上传 / 详情 / 阅读器
-        ├── shared-library.ts # 共享论文库检索
-        ├── knowledge.ts      # 分类 / 标签管理
-        ├── reading.ts        # 收藏 / 阅读管理 / 阅读笔记
-        ├── profile.ts        # 个人中心 / 仪表盘 / 数据统计
-        └── admin.ts          # 管理员端全部接口
-```
+- [业务规则](../BUSINESS_RULES.md)：包括用户确认的管理员最高读取权限、敏感访问审计、用户撤回及逻辑删除。
+- [API 文档](api-spec.md)：67 个端点（原 64 个 + 管理员个人数据只读 M26–M28）。
+- [TypeScript DTO](ts/types.ts)、[模块函数](ts/modules/)：代码级契约。
+- [数据库结构](db/schema.sql)、[演示种子](db/seed-demo.sql)、[ER 说明](db/er-design.md)。
+- [Java 开发规范](../paperhub-back/BACKEND_DEVELOPMENT_RULES.md)、[分批计划](../paperhub-back/BACKEND_DEVELOPMENT_PLAN.md)。
 
-## 核心约定速览
+## 约定
 
-| 约定 | 内容 |
-| --- | --- |
-| Base URL | `/api/v1` |
-| 认证 | `Authorization: Bearer <JWT>`；登录响应返回 token，过期时间 24h |
-| 统一响应包 | `{ code, message, data }`；`code = 0` 成功，非 0 见错误码表 |
-| 分页 | 请求 `page`（1 起）+ `pageSize`；响应 `PageResult<T> = { list, total }` |
-| 时间格式 | `yyyy-MM-dd HH:mm:ss`（与前端现有 mock 展示一致） |
-| 管理员端前缀 | `/api/v1/admin/**`，需 `admin` 角色 |
-| 文件传输 | 上传/下载均走 `multipart/form-data` 或文件流，元数据走 JSON |
+Base URL `/api/v1`；JWT Bearer；JSON `{code,message,data}`；分页 `{list,total}`；时间 `yyyy-MM-dd HH:mm:ss`，Asia/Shanghai。文件成功返回流，失败返回 JSON。上传/下载显式指定 HTTP 方法。
 
-## 前端接入方式
+结构脚本仅用于新空库，没有自动删库；不在应用启动时执行。演示种子含公开密码，只供开发空库手动导入。已有库需要另写增量迁移，不能重跑建表脚本。
 
-`ts/modules/` 中每个函数的第一个参数均为 `ApiClient`（见 `http.ts`），**函数签名与现有 `src/services/` 的 mock 实现保持一致**（个别纯本地函数除外，见 api-spec.md 映射表）。接入步骤：
+## 前端接入
 
-1. 在 `paperhub-frontend/src/api/` 下用 Axios 实现 `ApiClient`（baseURL、token 注入、响应包解包、错误提示）。
-2. 将 `ts/` 目录内容复制进 `src/api/`，为每个模块函数提供真实实现。
-3. 各页面将 `import ... from '@/services/xxx'` 替换为 `@/api/modules/xxx`，页面代码无需改动。
+`ts/modules` 是传输函数，每个函数接收 ApiClient；它们不是可以直接替换所有 Mock import 的零改动适配器。前端保持 Service 入口，由适配器绑定 client、处理登录响应、缓存选择器、404 空态与文件流。
 
-## 设计原则
+v1.1 已对齐前端的查重结果、重复对证据及状态、重复处理记录、管理员趋势、月度标签、密码结果、重置密码字符串和日期筛选。File、Promise、HTTP 方法及权限边界使用真实协议，具体接入步骤见开发计划。
 
-- **只覆盖前端已实现的功能**，不预设未开发的能力（通知、站内信等留待后续版本扩展）。
-- **权限边界内置**：管理员接口不暴露用户私有论文内容与私人阅读笔记（见 api-spec.md 权限矩阵）。
-- **前端零改动**：契约函数签名 = 现有 service 签名，替换实现即可。
+通知、注册、忘记密码、用户举报提交不自动新增。管理员个人数据只读端点来自用户明确授权，敏感访问必须服务端审计。

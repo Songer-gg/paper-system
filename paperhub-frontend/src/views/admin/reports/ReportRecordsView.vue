@@ -12,13 +12,16 @@ const paperMap = ref<Map<number, Paper>>(new Map())
 
 async function fetchRecords() {
   loading.value = true
-  const [list, papers] = await Promise.all([
-    admin.getReports('resolved'),
-    admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
-  ])
-  paperMap.value = new Map(papers.map((p) => [p.id, p]))
-  records.value = list
-  loading.value = false
+  try {
+    const [list, papers] = await Promise.all([
+      admin.getReports('resolved'),
+      admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
+    ])
+    paperMap.value = new Map(papers.map((p) => [p.id, p]))
+    records.value = list
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchRecords)
 
@@ -54,7 +57,9 @@ function typeLabel(t: ReportItem['type']): string {
           <template #default="{ row }">{{ titleOf(row.paperId) }}</template>
         </el-table-column>
         <el-table-column label="举报人" width="90">
-          <template #default="{ row }">{{ getUserName(row.reporterId) }}</template>
+          <template #default="{ row }">{{
+            row.reporterName ?? getUserName(row.reporterId)
+          }}</template>
         </el-table-column>
         <el-table-column label="举报原因" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ row.reason }}</template>

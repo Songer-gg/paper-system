@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as admin from '@/services/adminService'
 import type { Paper } from '@/types/paper'
-import { getCategory } from '@/mocks/categories'
+import { getCategory } from '@/services/knowledgeService'
 import { getUserName } from '@/mocks/users'
 
 const loading = ref(true)
@@ -11,14 +12,17 @@ const papers = ref<Paper[]>([])
 
 async function fetchPapers() {
   loading.value = true
-  papers.value = await admin.getSharedPapers({
-    title: '',
-    doi: '',
-    uploader: '',
-    categoryId: null,
-    status: 'offline',
-  })
-  loading.value = false
+  try {
+    papers.value = await admin.getSharedPapers({
+      title: '',
+      doi: '',
+      uploader: '',
+      categoryId: null,
+      status: 'offline',
+    })
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchPapers)
 
@@ -32,8 +36,8 @@ async function restorePaper(p: Paper) {
     await admin.restorePaper(p.id)
     ElMessage.success('论文已恢复上架')
     fetchPapers()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -47,8 +51,8 @@ async function deletePaper(p: Paper) {
     await admin.deletePaper(p.id)
     ElMessage.success('资源已删除')
     fetchPapers()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 </script>
@@ -87,7 +91,9 @@ async function deletePaper(p: Paper) {
             </template>
           </el-table-column>
           <el-table-column label="上传者" width="100">
-            <template #default="{ row }">{{ getUserName(row.uploaderId) }}</template>
+            <template #default="{ row }">{{
+              row.uploaderName ?? getUserName(row.uploaderId)
+            }}</template>
           </el-table-column>
           <el-table-column label="上传时间" width="110">
             <template #default="{ row }">{{ row.uploadedAt.slice(0, 10) }}</template>

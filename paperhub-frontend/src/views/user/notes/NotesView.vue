@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -15,13 +16,16 @@ const paperMap = ref<Map<number, Paper>>(new Map())
 
 async function fetchNotes() {
   loading.value = true
-  const [list, papers] = await Promise.all([userData.getNotes(), getVisiblePapers()])
-  notes.value = list
-  paperMap.value = new Map(papers.map((p) => [p.id, p]))
-  if (selectedId.value && !list.some((n) => n.id === selectedId.value)) {
-    selectedId.value = null
+  try {
+    const [list, papers] = await Promise.all([userData.getNotes(), getVisiblePapers()])
+    notes.value = list
+    paperMap.value = new Map(papers.map((p) => [p.id, p]))
+    if (selectedId.value && !list.some((n) => n.id === selectedId.value)) {
+      selectedId.value = null
+    }
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 onMounted(fetchNotes)
 
@@ -36,7 +40,7 @@ const filteredNotes = computed(() => {
     list = list.filter(
       (n) =>
         n.title.toLowerCase().includes(kw) ||
-        paperMap.value.get(n.paperId)?.title.toLowerCase().includes(kw),
+        (n.paperTitle ?? paperMap.value.get(n.paperId)?.title)?.toLowerCase().includes(kw),
     )
   }
   list.sort((a, b) =>
@@ -154,7 +158,7 @@ async function saveDialog() {
   if (editingNote.value) {
     await userData.updateNote(editingNote.value.id, {
       title: form.title,
-      paperId: form.paperId,
+      ...(form.paperId !== editingNote.value.paperId ? { paperId: form.paperId } : {}),
       content: form.content,
     })
     ElMessage.success('笔记已更新')
@@ -182,8 +186,8 @@ async function handleDelete(note: Note) {
     ElMessage.success('笔记已删除')
     if (selectedId.value === note.id) selectedId.value = null
     fetchNotes()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -233,7 +237,9 @@ function fmtTime(t: string): string {
             <div class="note-item-title ph-ellipsis">{{ n.title }}</div>
             <div class="note-item-paper ph-ellipsis">
               <el-icon><Document /></el-icon>
-              {{ paperMap.get(n.paperId)?.title ?? '未知论文' }}
+              {{
+                paperMap.get(n.paperId)?.title ?? `${n.paperTitle ?? '原论文'}（已删除或不可访问）`
+              }}
             </div>
             <div class="note-item-time">更新于 {{ fmtTime(n.updatedAt) }}</div>
           </div>
@@ -249,8 +255,16 @@ function fmtTime(t: string): string {
               <div class="preview-title">{{ selectedNote.title }}</div>
               <div class="preview-meta">
                 关联论文：
-                <el-link type="primary" underline="never" @click="goPaper(selectedNote.paperId)">
-                  {{ selectedPaper?.title ?? '未知论文' }}
+                <el-link
+                  :disabled="!selectedPaper"
+                  type="primary"
+                  underline="never"
+                  @click="goPaper(selectedNote.paperId)"
+                >
+                  {{
+                    selectedPaper?.title ??
+                    `${selectedNote.paperTitle ?? '原论文'}（已删除或不可访问）`
+                  }}
                 </el-link>
                 <span class="preview-time">
                   · 创建于 {{ fmtTime(selectedNote.createdAt) }}，更新于

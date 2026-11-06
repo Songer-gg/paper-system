@@ -20,7 +20,7 @@ export const mockCategories: Category[] = [
   { id: 16, name: '知识图谱', parentId: null },
 ]
 
-export function getCategory(id: number): Category | undefined {
+export function getCategory(id: number | null): Category | undefined {
   return mockCategories.find((c) => c.id === id)
 }
 

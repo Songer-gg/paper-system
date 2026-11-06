@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { TreeInstance } from 'element-plus'
 import type { Category, Paper } from '@/types/paper'
 import * as knowledge from '@/services/knowledgeService'
-import { getTag } from '@/mocks/tags'
+import { getTag } from '@/services/knowledgeService'
 import TagChip from '@/components/common/TagChip.vue'
 
 const router = useRouter()
@@ -22,13 +23,19 @@ const papersLoading = ref(false)
 
 async function fetchCategories(keepSelection = true) {
   loading.value = true
-  categories.value = await knowledge.getCategories()
-  counts.value = knowledge.countPapersByCategory()
-  loading.value = false
-  if (keepSelection && selectedId.value) {
-    const still = categories.value.some((c) => c.id === selectedId.value)
-    if (still) await loadPapers(selectedId.value)
-    else selectedId.value = null
+  try {
+    categories.value = await knowledge.getCategories()
+    counts.value = Object.fromEntries(
+      categories.value.map((category) => [category.id, category.paperCount ?? 0]),
+    )
+
+    if (keepSelection && selectedId.value) {
+      const still = categories.value.some((c) => c.id === selectedId.value)
+      if (still) await loadPapers(selectedId.value)
+      else selectedId.value = null
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -153,8 +160,8 @@ async function handleDelete(cat: Category) {
     ElMessage.success('分类已删除')
     if (selectedId.value === cat.id) selectedId.value = null
     fetchCategories()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 </script>
@@ -205,7 +212,11 @@ async function handleDelete(cat: Category) {
                     <CirclePlusFilled />
                   </el-icon>
                 </el-tooltip>
-                <el-tooltip content="重命名" placement="top">
+                <el-tooltip
+                  v-if="categories.find((category) => category.id === data.id)?.custom"
+                  content="重命名"
+                  placement="top"
+                >
                   <el-icon
                     class="node-action"
                     @click="openRename(categories.find((c) => c.id === data.id)!)"
@@ -213,7 +224,11 @@ async function handleDelete(cat: Category) {
                     <EditPen />
                   </el-icon>
                 </el-tooltip>
-                <el-tooltip content="删除" placement="top">
+                <el-tooltip
+                  v-if="categories.find((category) => category.id === data.id)?.custom"
+                  content="删除"
+                  placement="top"
+                >
                   <el-icon
                     class="node-action danger"
                     @click="handleDelete(categories.find((c) => c.id === data.id)!)"

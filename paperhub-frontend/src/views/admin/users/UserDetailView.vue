@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AdminUser } from '@/services/adminService'
 import * as admin from '@/services/adminService'
 import type { Paper } from '@/types/paper'
-import { reviewStatusLabels } from '@/types/paper'
-import { getCategory } from '@/mocks/categories'
+import { readingStatusLabels, reviewStatusLabels } from '@/types/paper'
+import { getCategory } from '@/services/knowledgeService'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +16,22 @@ const userId = Number(route.params.id)
 const loading = ref(true)
 const user = ref<AdminUser | null>(null)
 const papers = ref<Paper[]>([])
+const favorites = ref<Awaited<ReturnType<typeof admin.getUserFavorites>>>([])
+const reading = ref<Awaited<ReturnType<typeof admin.getUserReadingRecords>>>([])
+const notes = ref<Awaited<ReturnType<typeof admin.getUserNotes>>>([])
+const personalLoaded = ref(false)
+
+async function loadPersonalData() {
+  const result = await Promise.all([
+    admin.getUserFavorites(userId),
+    admin.getUserReadingRecords(userId),
+    admin.getUserNotes(userId),
+  ])
+  favorites.value = result[0]
+  reading.value = result[1]
+  notes.value = result[2]
+  personalLoaded.value = true
+}
 
 const statusClass = computed(() =>
   user.value?.status === 'active' ? 'ph-status--success' : 'ph-status--danger',
@@ -22,13 +39,17 @@ const statusClass = computed(() =>
 
 async function fetchDetail() {
   loading.value = true
-  user.value = await admin.getUserDetail(userId)
-  papers.value = await admin.getUserPapers(userId)
-  loading.value = false
+  try {
+    user.value = await admin.getUserDetail(userId)
+    papers.value = await admin.getUserPapers(userId)
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchDetail)
 
 function statusLabel(p: Paper): string {
+  if (p.visibility === 'private') return '私有 · 无需审核'
   return reviewStatusLabels[p.reviewStatus ?? 'pending']
 }
 
@@ -63,8 +84,8 @@ async function toggleStatus() {
     await admin.setUserStatus(userId, disabling ? 'disabled' : 'active')
     ElMessage.success(disabling ? '用户已禁用' : '用户已恢复')
     fetchDetail()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -83,8 +104,8 @@ async function resetPassword() {
       { confirmButtonText: '知道了', type: 'success' },
     )
     fetchDetail()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -98,7 +119,7 @@ function goBack() {
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">用户详情</h2>
-        <p class="ph-page-desc">查看用户资料与其共享的论文资源</p>
+        <p class="ph-page-desc">查看用户资料、全部论文及个人阅读数据</p>
       </div>
       <el-button :icon="'ArrowLeft'" @click="goBack">返回列表</el-button>
     </div>
@@ -129,7 +150,7 @@ function goBack() {
                 {{ user.registeredAt.slice(0, 10) }}
               </el-descriptions-item>
               <el-descriptions-item label="密码重置">
-                <span v-if="admin.isPasswordReset(user.id)" class="reset-badge">已重置</span>
+                <span v-if="user.passwordResetAt" class="reset-badge">已重置</span>
                 <span v-else class="ph-text-muted">未重置</span>
               </el-descriptions-item>
             </el-descriptions>
@@ -161,15 +182,15 @@ function goBack() {
             type="info"
             :closable="false"
             show-icon
-            title="隐私保护说明"
-            description="根据平台规则，管理员无法浏览用户的私有论文 PDF 与私人阅读笔记，本页仅展示该用户主动共享的论文资源。"
+            title="管理员数据访问"
+            description="管理员可查看私有论文及个人数据。查看个人阅读数据时记录访问对象与时间；删除的论文文件不可访问。"
           />
         </div>
 
         <!-- 右列：共享论文列表 -->
         <div class="ph-card papers-card">
           <div class="papers-head">
-            <h3 class="ph-section-title">共享论文（{{ papers.length }}）</h3>
+            <h3 class="ph-section-title">全部论文（{{ papers.length }}）</h3>
           </div>
           <el-table v-if="papers.length" :data="papers" style="width: 100%">
             <el-table-column label="论文标题" min-width="260" show-overflow-tooltip>
@@ -192,8 +213,57 @@ function goBack() {
             <el-table-column label="上传时间" width="110">
               <template #default="{ row }">{{ row.uploadedAt.slice(0, 10) }}</template>
             </el-table-column>
+            <el-table-column label="操作" width="90">
+              <template #default="{ row }">
+                <el-button text @click="router.push(`/admin/papers/${row.id}/reader`)"
+                  >预览</el-button
+                >
+              </template>
+            </el-table-column>
           </el-table>
-          <el-empty v-else description="该用户暂无共享论文" :image-size="90" />
+          <el-empty v-else description="该用户暂无论文" :image-size="90" />
+          <el-divider />
+          <el-button v-if="!personalLoaded" @click="loadPersonalData">查看个人阅读数据</el-button>
+          <el-tabs v-else>
+            <el-tab-pane :label="`收藏（${favorites.length}）`">
+              <el-table :data="favorites">
+                <el-table-column label="论文"
+                  ><template #default="{ row }">{{
+                    row.paper?.title ?? '原论文已删除'
+                  }}</template></el-table-column
+                >
+                <el-table-column prop="favoritedAt" label="收藏时间" />
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane :label="`阅读记录（${reading.length}）`">
+              <el-table :data="reading">
+                <el-table-column label="论文"
+                  ><template #default="{ row }">{{
+                    row.paper?.title ?? '原论文已删除'
+                  }}</template></el-table-column
+                >
+                <el-table-column label="状态"
+                  ><template #default="{ row }">{{
+                    readingStatusLabels[row.status as keyof typeof readingStatusLabels]
+                  }}</template></el-table-column
+                >
+                <el-table-column prop="lastReadAt" label="最近阅读" />
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane :label="`私人笔记（${notes.length}）`">
+              <el-collapse>
+                <el-collapse-item
+                  v-for="note in notes"
+                  :key="note.id"
+                  :title="note.title"
+                  :name="note.id"
+                >
+                  <p>{{ note.paperTitle ?? `论文 #${note.paperId}` }}</p>
+                  <div style="white-space: pre-wrap">{{ note.content }}</div>
+                </el-collapse-item>
+              </el-collapse>
+            </el-tab-pane>
+          </el-tabs>
         </div>
       </div>
     </template>

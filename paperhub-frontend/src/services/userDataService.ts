@@ -1,94 +1,105 @@
 import type { FavoriteRecord, Note, ReadingRecord, ReadingStatus } from '@/types/paper'
-import { loadJSON, saveJSON } from '@/utils/storage'
 import { seedFavoriteRecords, seedReadingRecords } from '@/mocks/user/reading'
 import { seedNotes } from '@/mocks/user/notes'
+import { currentUserId, loadPersonalJSON, savePersonalJSON } from '@/utils/personalStorage'
 
-/**
- * 当前用户个人数据服务：收藏 / 阅读状态 / 笔记。
- * 使用 localStorage 保存操作结果，刷新页面后演示状态仍保留。
- * 后续接入后端时，将本文件实现替换为真实 API 调用即可。
- */
-
-const FAVORITE_KEY = 'ph_favorites'
-const READING_KEY = 'ph_reading'
-const NOTE_KEY = 'ph_notes'
-
-const favoriteRecords = loadJSON(FAVORITE_KEY, seedFavoriteRecords)
-const readingRecords = loadJSON(READING_KEY, seedReadingRecords)
-const notes = loadJSON<Note[]>(NOTE_KEY, seedNotes)
-
-function delay<T>(value: T, ms = 150): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms))
+const favorites = () =>
+  loadPersonalJSON<FavoriteRecord[]>(
+    'ph_favorites',
+    currentUserId() === 1 ? seedFavoriteRecords : [],
+  )
+const readings = () =>
+  loadPersonalJSON<ReadingRecord[]>('ph_reading', currentUserId() === 1 ? seedReadingRecords : [])
+const notes = () => loadPersonalJSON<Note[]>('ph_notes', currentUserId() === 1 ? seedNotes : [])
+const now = () => new Date().toLocaleString('sv-SE')
+async function visiblePaper(id: number) {
+  return (await import('@/services/myLibraryService')).getPaperForDetail(id)
 }
-
-function now(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/* ---------------- 收藏 ---------------- */
 
 export async function getFavorites(): Promise<FavoriteRecord[]> {
-  return delay(favoriteRecords.map((f) => ({ ...f })))
+  const result: FavoriteRecord[] = []
+  for (const record of favorites()) {
+    const paper = await visiblePaper(record.paperId)
+    if (paper?.visibility === 'shared' && paper.reviewStatus === 'approved')
+      result.push({ ...record })
+  }
+  return result
 }
 
+/** 同步缓存选择器；真实接入须先由 R1 初始化缓存。 */
 export function getFavoritePaperIds(): number[] {
-  return favoriteRecords.map((f) => f.paperId)
+  return favorites().map((item) => item.paperId)
 }
 
 export async function toggleFavorite(
   paperId: number,
+  target?: boolean,
 ): Promise<{ paperId: number; favorited: boolean }> {
-  const idx = favoriteRecords.findIndex((f) => f.paperId === paperId)
-  let favorited: boolean
-  if (idx >= 0) {
-    favoriteRecords.splice(idx, 1)
-    favorited = false
-  } else {
-    favoriteRecords.unshift({ paperId, favoritedAt: now() })
-    favorited = true
-  }
-  saveJSON(FAVORITE_KEY, favoriteRecords)
-  return delay({ paperId, favorited })
+  const records = favorites()
+  const index = records.findIndex((item) => item.paperId === paperId)
+  const favorited = target ?? index < 0
+  if (favorited && index < 0) {
+    const paper = await visiblePaper(paperId)
+    if (!paper || paper.visibility !== 'shared' || paper.reviewStatus !== 'approved')
+      throw new Error('只能收藏可见共享论文')
+    records.unshift({ paperId, favoritedAt: now() })
+  } else if (!favorited && index >= 0) records.splice(index, 1)
+  savePersonalJSON('ph_favorites', records)
+  return { paperId, favorited }
 }
 
-/* ---------------- 阅读状态 ---------------- */
-
-export function getReadingRecords(): ReadingRecord[] {
-  return readingRecords
+export async function getReadingRecords(): Promise<ReadingRecord[]> {
+  const result: ReadingRecord[] = []
+  for (const record of readings()) {
+    if (await visiblePaper(record.paperId))
+      result.push({ ...record, addedAt: record.addedAt ?? record.lastReadAt })
+  }
+  return result
 }
 
 export async function addToReading(paperId: number): Promise<ReadingRecord> {
-  const existing = readingRecords.find((r) => r.paperId === paperId)
-  if (existing) {
-    return delay({ ...existing })
-  }
-  const record: ReadingRecord = { paperId, status: 'unread', lastReadAt: now() }
-  readingRecords.unshift(record)
-  saveJSON(READING_KEY, readingRecords)
-  return delay({ ...record })
+  if (!(await visiblePaper(paperId))) throw new Error('论文不可访问')
+  const records = readings()
+  const existing = records.find((item) => item.paperId === paperId)
+  if (existing) return { ...existing, addedAt: existing.addedAt ?? existing.lastReadAt }
+  const record: ReadingRecord = { paperId, status: 'unread', addedAt: now(), lastReadAt: now() }
+  records.unshift(record)
+  savePersonalJSON('ph_reading', records)
+  return { ...record }
 }
 
 export async function updateReadingStatus(
   paperId: number,
   status: ReadingStatus,
 ): Promise<ReadingRecord> {
-  const existing = readingRecords.find((r) => r.paperId === paperId)
-  if (existing) {
-    existing.status = status
-    existing.lastReadAt = now()
-  } else {
-    readingRecords.unshift({ paperId, status, lastReadAt: now() })
+  if (!['unread', 'reading', 'read', 'paused'].includes(status)) throw new Error('无效阅读状态')
+  if (!(await visiblePaper(paperId))) throw new Error('论文不可访问')
+  const records = readings()
+  let record = records.find((item) => item.paperId === paperId)
+  if (!record) {
+    record = { paperId, status, addedAt: now(), lastReadAt: now() }
+    records.unshift(record)
   }
-  saveJSON(READING_KEY, readingRecords)
-  return delay({ ...readingRecords.find((r) => r.paperId === paperId)! })
+  record.addedAt ??= record.lastReadAt
+  record.status = status
+  record.lastReadAt = now()
+  savePersonalJSON('ph_reading', records)
+  return { ...record }
 }
 
-/* ---------------- 笔记（供后续批次使用） ---------------- */
-
 export async function getNotes(): Promise<Note[]> {
-  return delay(notes.map((n) => ({ ...n })))
+  return Promise.all(
+    notes().map(async (note) => {
+      const paper = await visiblePaper(note.paperId)
+      return { ...note, paperTitle: note.paperTitle ?? paper?.title, paperAvailable: !!paper }
+    }),
+  )
+}
+
+function validateNote(title: string, content: string): void {
+  if (!title.trim() || [...title.trim()].length > 300) throw new Error('笔记标题须为 1–300 字符')
+  if (!content.trim() || new TextEncoder().encode(content).length > 60000)
+    throw new Error('笔记正文为空或过长')
 }
 
 export async function addNote(input: {
@@ -96,38 +107,51 @@ export async function addNote(input: {
   paperId: number
   content: string
 }): Promise<Note> {
-  const maxId = notes.reduce((m, n) => Math.max(m, n.id), 5000)
+  validateNote(input.title, input.content)
+  const paper = await visiblePaper(input.paperId)
+  if (!paper) throw new Error('关联论文不可访问')
+  const records = notes()
   const note: Note = {
-    id: maxId + 1,
+    ...input,
+    id: Math.max(5000, ...records.map((item) => item.id)) + 1,
     title: input.title.trim(),
-    paperId: input.paperId,
     content: input.content.trim(),
+    paperTitle: paper.title,
+    paperAvailable: true,
     createdAt: now(),
     updatedAt: now(),
   }
-  notes.unshift(note)
-  saveJSON(NOTE_KEY, notes)
-  return delay(note)
+  records.unshift(note)
+  savePersonalJSON('ph_notes', records)
+  return { ...note }
 }
 
 export async function updateNote(
   id: number,
   patch: { title?: string; paperId?: number; content?: string },
 ): Promise<Note | null> {
-  const note = notes.find((n) => n.id === id)
-  if (!note) return delay(null)
-  if (patch.title !== undefined) note.title = patch.title.trim()
-  if (patch.paperId !== undefined) note.paperId = patch.paperId
-  if (patch.content !== undefined) note.content = patch.content.trim()
+  const records = notes()
+  const note = records.find((item) => item.id === id)
+  if (!note) return null
+  validateNote(patch.title ?? note.title, patch.content ?? note.content)
+  if (patch.paperId !== undefined && patch.paperId !== note.paperId) {
+    const paper = await visiblePaper(patch.paperId)
+    if (!paper) throw new Error('关联论文不可访问')
+    note.paperId = patch.paperId
+    note.paperTitle = paper.title
+  }
+  note.title = (patch.title ?? note.title).trim()
+  note.content = (patch.content ?? note.content).trim()
   note.updatedAt = now()
-  saveJSON(NOTE_KEY, notes)
-  return delay({ ...note })
+  savePersonalJSON('ph_notes', records)
+  return { ...note }
 }
 
 export async function deleteNote(id: number): Promise<boolean> {
-  const idx = notes.findIndex((n) => n.id === id)
-  if (idx < 0) return delay(false)
-  notes.splice(idx, 1)
-  saveJSON(NOTE_KEY, notes)
-  return delay(true)
+  const records = notes()
+  const index = records.findIndex((note) => note.id === id)
+  if (index < 0) return false
+  records.splice(index, 1)
+  savePersonalJSON('ph_notes', records)
+  return true
 }

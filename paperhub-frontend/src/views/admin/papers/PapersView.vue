@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as admin from '@/services/adminService'
 import type { Paper, ReviewStatus } from '@/types/paper'
 import { reviewStatusLabels } from '@/types/paper'
-import { getCategory, mockCategories } from '@/mocks/categories'
+import { mockCategories } from '@/mocks/categories'
+import { getCategory } from '@/services/knowledgeService'
 import { getUserName } from '@/mocks/users'
 
 /** 分类树（el-tree-select 数据） */
@@ -39,15 +41,18 @@ const query = reactive({
 
 async function fetchPapers() {
   loading.value = true
-  papers.value = await admin.getSharedPapers({
-    title: query.title,
-    doi: query.doi,
-    uploader: query.uploader,
-    categoryId: query.categoryId,
-    status: query.status,
-  })
-  page.value = 1
-  loading.value = false
+  try {
+    papers.value = await admin.getSharedPapers({
+      title: query.title,
+      doi: query.doi,
+      uploader: query.uploader,
+      categoryId: query.categoryId,
+      status: query.status,
+    })
+    page.value = 1
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchPapers)
 
@@ -100,8 +105,8 @@ async function offlinePaper(p: Paper) {
     await admin.offlinePaper(p.id)
     ElMessage.success('论文已下架')
     fetchPapers()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 
@@ -121,8 +126,8 @@ async function deletePaper(p: Paper) {
     await admin.deletePaper(p.id)
     ElMessage.success('违规资源已删除')
     fetchPapers()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    reportActionError(error)
   }
 }
 </script>
@@ -209,7 +214,9 @@ async function deletePaper(p: Paper) {
             </template>
           </el-table-column>
           <el-table-column label="上传者" width="100">
-            <template #default="{ row }">{{ getUserName(row.uploaderId) }}</template>
+            <template #default="{ row }">{{
+              row.uploaderName ?? getUserName(row.uploaderId)
+            }}</template>
           </el-table-column>
           <el-table-column label="下载量" width="80" align="center">
             <template #default="{ row }">
@@ -283,7 +290,7 @@ async function deletePaper(p: Paper) {
               {{ getCategory(current.categoryId)?.name ?? '—' }}
             </el-descriptions-item>
             <el-descriptions-item label="上传者">
-              {{ getUserName(current.uploaderId) }}
+              {{ current.uploaderName ?? getUserName(current.uploaderId) }}
             </el-descriptions-item>
             <el-descriptions-item label="上传时间">{{ current.uploadedAt }}</el-descriptions-item>
             <el-descriptions-item label="下载量">{{ current.downloads }}</el-descriptions-item>

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { Paper } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
+import * as admin from '@/services/adminService'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,7 +21,9 @@ const scale = ref(1)
 const scaleOptions = [0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
 
 onMounted(async () => {
-  const p = await myLibrary.getPaperForDetail(paperId)
+  const p = route.path.startsWith('/admin/')
+    ? await admin.getPaperById(paperId)
+    : await myLibrary.getPaperForDetail(paperId)
   paper.value = p
   if (p) {
     pageCount.value = Math.max(p.pageCount, 4)

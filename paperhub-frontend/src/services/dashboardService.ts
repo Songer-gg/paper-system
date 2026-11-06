@@ -1,15 +1,14 @@
+import { currentUserId } from '@/utils/personalStorage'
 import type { Paper, ReadingStatus } from '@/types/paper'
 import { readingStatusLabels } from '@/types/paper'
 import { sharedPapers } from '@/mocks/papers/sharedPapers'
 import { privatePapers } from '@/mocks/papers/privatePapers'
 import { pendingPapers } from '@/mocks/papers/pendingPapers'
 import { mockUsers } from '@/mocks/users'
-import { getCategory } from '@/mocks/categories'
+import { getCategory } from '@/services/knowledgeService'
 import { registerTrend, uploadTrend } from '@/mocks/admin/stats'
 import * as userData from '@/services/userDataService'
 import { loadJSON } from '@/utils/storage'
-
-const CURRENT_USER_ID = 1
 
 function delay<T>(value: T, ms = 300): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
@@ -42,19 +41,19 @@ export interface UserDashboard {
 }
 
 export async function getUserDashboard(): Promise<UserDashboard> {
-  const mine = allPapers().filter((p) => p.uploaderId === CURRENT_USER_ID)
+  const mine = allPapers().filter((p) => p.uploaderId === currentUserId())
   const myShared = mine.filter((p) => p.visibility === 'shared')
   const myPrivate = mine.filter((p) => p.visibility === 'private')
   const myPapers = [...myShared, ...myPrivate]
   const favorites = await userData.getFavorites()
-  const reading = userData.getReadingRecords()
+  const reading = await userData.getReadingRecords()
 
   /* 论文解析：自己的论文，或共享库中审核通过的论文 */
   const readPaper = (paperId: number): Paper | undefined =>
     allPapers().find(
       (p) =>
         p.id === paperId &&
-        (p.uploaderId === CURRENT_USER_ID ||
+        (p.uploaderId === currentUserId() ||
           (p.visibility === 'shared' && p.reviewStatus === 'approved')),
     )
 
@@ -134,9 +133,8 @@ export interface AdminDashboard {
   pendingTasks: Paper[]
 }
 
-const TODAY = '2026-11-03'
-
 export async function getAdminDashboard(): Promise<AdminDashboard> {
+  const today = new Date().toLocaleDateString('sv-SE')
   const normalUsers = mockUsers.filter((u) => u.role === 'user')
   const allShared = [...sharedPapers, ...pendingPapers]
 
@@ -156,8 +154,8 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
       users: normalUsers.length,
       papers: sharedPapers.length,
       pending: pendingPapers.length,
-      papersToday: allShared.filter((p) => p.uploadedAt.startsWith(TODAY)).length,
-      usersToday: normalUsers.filter((u) => u.registeredAt.startsWith(TODAY)).length,
+      papersToday: allShared.filter((p) => p.uploadedAt.startsWith(today)).length,
+      usersToday: normalUsers.filter((u) => u.registeredAt.startsWith(today)).length,
     },
     uploadTrend,
     registerTrend,
