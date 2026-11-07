@@ -1,0 +1,9 @@
+/target/
+/config/local.properties
+/.env
+/.env.*
+!/.env.example
+*.log
+/.idea/
+*.iml
+__pycache__/
