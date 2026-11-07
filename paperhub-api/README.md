@@ -16,6 +16,8 @@ Base URL `/api/v1`；JWT Bearer；JSON `{code,message,data}`；分页 `{list,tot
 
 结构脚本仅用于新空库，没有自动删库；不在应用启动时执行。演示种子含公开密码，只供开发空库手动导入。已有库需要另写增量迁移，不能重跑建表脚本。
 
+已为本机v1.0旧库提供[增量迁移说明](db/migrations/README.md)与v1.0_to_v1.1.sql，包含隔离演练和原数据保留检查；不要对已有库直接执行schema.sql。
+
 ## 前端接入
 
 `ts/modules` 是传输函数，每个函数接收 ApiClient；它们不是可以直接替换所有 Mock import 的零改动适配器。前端保持 Service 入口，由适配器绑定 client、处理登录响应、缓存选择器、404 空态与文件流。

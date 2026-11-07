@@ -17,6 +17,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from database_structure import STRUCTURE_SQL, decode_inventory
 
 FLAGS = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
 
@@ -140,7 +141,40 @@ def smoke(backend, env):
                 raise AssertionError('Anonymous API request unexpectedly succeeded')
             except urllib.error.HTTPError as error:
                 assert error.code == 401 and json.load(error)['code'] == 1001
-            print('PASS: packaged Java 8 application, real HTTP login and anonymous 401')
+            base = url.rsplit('/auth/login', 1)[0]
+            headers = {'Authorization': 'Bearer ' + result['data']['token']}
+            fixture = next((Path(env['PAPERHUB_STORAGE_ROOT']) / 'papers').glob('*.pdf'))
+            pdf = fixture.read_bytes()
+            boundary = 'PaperHub' + secrets.token_hex(16)
+            payload = {'title': 'HTTP smoke ' + secrets.token_hex(8), 'authors': ['Smoke author'],
+                       'abstract': 'Real HTTP multipart verification', 'year': 2026, 'categoryId': 1,
+                       'tagIds': [], 'keywords': [], 'visibility': 'private', 'copyrightAgreed': False}
+            multipart = (('--' + boundary + '\r\nContent-Disposition: form-data; name="payload"\r\n'
+                          'Content-Type: application/json\r\n\r\n').encode() + json.dumps(payload).encode() +
+                         ('\r\n--' + boundary + '\r\nContent-Disposition: form-data; name="file"; '
+                          'filename="smoke.pdf"\r\nContent-Type: application/pdf\r\n\r\n').encode() + pdf +
+                         ('\r\n--' + boundary + '--\r\n').encode())
+            request = urllib.request.Request(base + '/papers', multipart,
+                      dict(headers, **{'Content-Type': 'multipart/form-data; boundary=' + boundary}), method='POST')
+            with urllib.request.urlopen(request, timeout=10) as response:
+                paper_id = json.load(response)['data']['id']
+            resource = base + '/papers/' + str(paper_id)
+            for suffix, method, disposition in [('/file', 'GET', 'inline'), ('/download', 'POST', 'attachment')]:
+                request = urllib.request.Request(resource + suffix, headers=headers, method=method)
+                with urllib.request.urlopen(request, timeout=10) as response:
+                    assert response.headers['Content-Type'] == 'application/pdf'
+                    assert response.headers['Content-Disposition'].startswith(disposition)
+                    assert response.read() == pdf
+            with urllib.request.urlopen(urllib.request.Request(resource, headers=headers), timeout=10) as response:
+                assert json.load(response)['data']['downloads'] == 1
+            with urllib.request.urlopen(urllib.request.Request(resource, headers=headers, method='DELETE'), timeout=10) as response:
+                assert json.load(response)['data'] is True
+            try:
+                urllib.request.urlopen(urllib.request.Request(resource + '/file', headers=headers), timeout=10)
+                raise AssertionError('Deleted PDF unexpectedly remained accessible')
+            except urllib.error.HTTPError as error:
+                assert error.code == 404 and json.load(error)['code'] == 1003
+            print('PASS: packaged Java 8 HTTP login, anonymous 401, multipart upload, preview/download bytes, counter and logical delete')
         finally:
             app.terminate()
             try:
@@ -162,6 +196,12 @@ def main():
     with TemporaryMySql(args.mysql_bin) as database:
         schema = backend.parent / 'paperhub-api' / 'db'
         database.sql((schema / 'schema.sql').read_text(encoding='utf-8'))
+        (backend / 'target').mkdir(exist_ok=True)
+        structure = database.raw_sql(STRUCTURE_SQL)
+        if structure.returncode:
+            raise RuntimeError('Temporary schema inventory failed')
+        (backend / 'target/expected-database-structure.json').write_text(
+            json.dumps(decode_inventory(structure.stdout.decode('utf-8')), indent=2), encoding='utf-8')
         database.sql((schema / 'seed-demo.sql').read_text(encoding='utf-8'))
         password = secrets.token_hex(20)
         database.sql("CREATE USER 'paperhub_test'@'127.0.0.1' IDENTIFIED BY '" + password + "'; "
@@ -171,6 +211,8 @@ def main():
                    '/paperhub?connectionTimeZone=Asia/Shanghai',
                    PAPERHUB_DB_USERNAME='paperhub_test', PAPERHUB_DB_PASSWORD=password,
                    PAPERHUB_JWT_SECRET=base64.b64encode(secrets.token_bytes(32)).decode(),
+                   PAPERHUB_STORAGE_ROOT=str(database.root / 'storage'),
+                   PAPERHUB_CLEANUP_ENABLED='false',
                    PAPERHUB_TEST_DATA_DIR=str(database.data.resolve()))
         env['MAVEN_OPTS'] = env.get('MAVEN_OPTS', '') + ' -Dfile.encoding=UTF-8'
         (backend / 'target').mkdir(exist_ok=True)

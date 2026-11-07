@@ -2,7 +2,7 @@
 
 Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8。
 
-本批实现 A1 `POST /api/v1/auth/login`，以及后续接口共用的认证、授权、响应和异常基础。其他业务端点按 [分批计划](BACKEND_DEVELOPMENT_PLAN.md) 开发；前端仍使用 Mock。本批不会自动创建数据库或导入账号。
+已完成A1认证和第2批U1–U4/U7–U9/P3：论文上传、详情/编辑、私有库、逻辑删除、受控PDF预览/下载及头像。管理员私有访问先写独立审计；文件失败可补偿重试。详见[第2批交付](BATCH_2_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端仍使用Mock；共享状态机等按后续批次实施。应用启动不自动建库或导入账号。
 
 ## 环境
 
@@ -10,7 +10,7 @@ Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8�
 - MySQL 8.0.16+，先按 `paperhub-api/db` 的说明为新空库手动初始化；已有库必须使用单独迁移。
 - 数据库应用账号只需所需业务表的 SELECT/INSERT/UPDATE/DELETE，不使用 root 运行应用。
 
-依赖使用 pom.xml 的 Boot BOM 和固定版本。PDFBox 尚未引入，将在文件批次加入。不要改用 Boot 3/Jakarta 或 Spring Security 6。
+依赖使用pom.xml的Boot BOM和固定版本；已引入PDFBox 2.0.35并实际验证Java8。不要改用Boot3/Jakarta或Spring Security6。
 
 ## 配置与运行
 
@@ -40,13 +40,15 @@ java -jar target/paperhub-back-0.1.0-SNAPSHOT.jar
 
 已根据本轮提供的账号创建 `config/local.properties`，其中包含本地数据库凭据和随机签名密钥。此文件被Git忽略，位于src/main/resources之外，不会打包；不要复制到资源目录。
 
-本机MySQL服务启动后，在paperhub-back目录执行：
+本机MySQL服务已连接，旧库已通过独立增量迁移对齐v1.1。在paperhub-back目录执行：
 
 ```powershell
 java -jar target/paperhub-back-0.1.0-SNAPSHOT.jar '--spring.config.additional-location=file:./config/local.properties'
 ```
 
-环境变量仍可覆盖配置中的同名值。该配置指向127.0.0.1:3306/paperhub；本批没有创建或重建该库，也没有自动导入演示账号。先检查已有库状态，再决定是否需要空库初始化或独立迁移。
+环境变量仍可覆盖配置中的同名值。该配置指向127.0.0.1:3306/paperhub；保留原账号及业务记录，4条缺少版权确认的旧共享样例改为驳回，未替用户确认版权。原演示PDF不存在，文件接口返回404；真实文件须经U7上传。迁移检查及历史时间口径见BATCH_2_DELIVERY.md。
+
+文件默认保存在工作目录下data/storage，可配置PAPERHUB_STORAGE_ROOT；该目录不公开映射且被Git忽略。.cleanup为持久化清理队列，需要随存储目录保留；PAPERHUB_CLEANUP_ENABLED默认true，每30秒检查成熟任务。头像响应沿用前端dataURL显示方式，数据库只存服务器生成的短键，不新增公开头像接口。
 
 ## 登录与安全语义
 
@@ -98,7 +100,7 @@ python -B paperhub-back/scripts/verify_mysql.py `
 
 脚本创建临时 MySQL 数据目录、随机端口及临时应用账号；核对 @@datadir 后才导入结构和种子。随机数据库密码和 JWT 密钥仅通过子进程环境传入，测试完成关闭临时服务并清理目录。集成测试拒绝在没有隔离标记或数据目录不匹配时更新数据库。
 
-脚本执行 `mvn -Pmysql-it verify`，并用 Java 8 启动打包应用、通过真实 HTTP 验证登录与匿名401。报告在 target/surefire-reports、target/failsafe-reports；应用验证日志在 target/application-smoke.log。
+脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用，经真实HTTP验证登录、匿名401、multipart上传、PDF原字节、计数与删除后404。累计11项单元测试、33项真实MySQL集成测试。测试文件也在临时目录，不写本机存储。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
 
 依赖扫描：
 
@@ -109,6 +111,6 @@ python -B scripts/audit_dependencies.py
 
 扫描只向 OSV 发送公开 Maven 坐标及版本，结果写 target/dependency-audit.json。扫描失败记为未完成，不能当作“无漏洞”；发现项需评估并形成上线处理结论，不擅自替换既定框架。
 
-业务规则见 [BUSINESS_RULES.md](../BUSINESS_RULES.md)，管理员查看全部个人数据和私有 PDF 的可靠审计将在相关业务批次落地，不能仅凭角色过滤器视为已完成审计。
+业务规则见[BUSINESS_RULES.md](../BUSINESS_RULES.md)。管理员私有论文元数据/PDF审计已落地；他人收藏/阅读/笔记读取在第6批实施。
 
 第1批交付及验收见 [BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)，依赖公告及上线门禁见 [SECURITY_AUDIT.md](SECURITY_AUDIT.md)。

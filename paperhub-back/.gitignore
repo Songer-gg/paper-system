@@ -1,4 +1,6 @@
 /target/
+/data/
+/backups/
 /config/local.properties
 /.env
 /.env.*

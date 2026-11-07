@@ -72,6 +72,7 @@ export interface AdminUser extends PlatformUser {
 }
 
 export interface MyProfile extends PlatformUser {
+  /** 已认证响应中的重编码头像dataURL；未设置时为空字符串，数据库只存内部文件键 */
   avatar: string;
   uploadedCount: number;
 }
@@ -112,7 +113,7 @@ export interface PaperEditPayload {
   journal?: string;
   year?: number;
   doi?: string;
-  categoryId?: number;
+  categoryId?: number | null;
   tagIds?: number[];
   keywords?: string[];
   link?: string;

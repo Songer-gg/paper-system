@@ -24,7 +24,7 @@
 | 上传共享         | 新建且版权确认、最终查重通过       | shared / pending                                              |
 | share            | 本人 private，重新确认版权         | shared / pending                                              |
 | unshare          | 本人 shared / pending 或 approved  | shared / offline，offlineReason=withdrawn                     |
-| resubmit         | 本人 rejected 或 offline/withdrawn | pending，清除旧原因；再次查重                                 |
+| resubmit         | 本人 rejected 或 offline/withdrawn | pending，清除旧原因；再次查重；历史记录缺少版权确认时须重新确认 |
 | approve / reject | 管理员 shared / pending            | approved / rejected；驳回原因必填                             |
 | offline          | 管理员 shared / approved           | offline，offlineReason=moderation，保留原因                   |
 | restore          | 管理员 shared / offline/moderation | approved，重新验证版权与重复约束                              |

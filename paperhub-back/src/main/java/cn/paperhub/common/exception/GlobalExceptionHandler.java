@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -39,7 +38,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> badRequest(Exception ex) {
         return failure(ErrorCode.INVALID_PARAM, "请求格式、字段或方法不合法");
     }
-    @ExceptionHandler({DuplicateKeyException.class, OptimisticLockingFailureException.class})
+    @ExceptionHandler({org.springframework.web.multipart.MultipartException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+    public ResponseEntity<ApiResponse<Void>> multipart(Exception ex) {
+        return failure(ErrorCode.INVALID_PARAM, "文件缺失、大小超限或上传格式不合法");
+    }
+    @ExceptionHandler({DuplicateKeyException.class, org.springframework.dao.ConcurrencyFailureException.class})
     public ResponseEntity<ApiResponse<Void>> conflict(Exception ex) { return failure(ErrorCode.CONFLICT); }
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> integrity(Exception ex) { return failure(ErrorCode.INVALID_PARAM); }

@@ -17,9 +17,11 @@ public class ApplicationConfig {
     @Bean
     public Jackson2ObjectMapperBuilderCustomizer timeFormat() {
         return builder -> {
+            builder.featuresToDisable(com.fasterxml.jackson.databind.MapperFeature.ALLOW_COERCION_OF_SCALARS,
+                    com.fasterxml.jackson.databind.DeserializationFeature.ACCEPT_FLOAT_AS_INT);
             DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             builder.serializers(new LocalDateTimeSerializer(format));
-            builder.deserializers(new LocalDateTimeDeserializer(format));
+            builder.deserializers(new LocalDateTimeDeserializer(format), new StrictStringDeserializer());
         };
     }
 }

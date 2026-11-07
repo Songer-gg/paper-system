@@ -45,6 +45,9 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
 
 paperhub:
+  storage:
+    root: ${PAPERHUB_STORAGE_ROOT:./data/storage}
+    cleanup-enabled: ${PAPERHUB_CLEANUP_ENABLED:true}
   security:
     jwt-secret: ${PAPERHUB_JWT_SECRET:}
     token-ttl: 24h

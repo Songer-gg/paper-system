@@ -28,7 +28,7 @@ export function getPaperForDetail(
   return client.get(`/papers/${id}`);
 }
 
-/** U3 PATCH /papers/{id} — 编辑论文元数据（仅本人） */
+/** U3 PATCH /papers/{id} — 编辑论文元数据（本人或管理员） */
 export function updatePaper(
   client: ApiClient,
   id: number,
@@ -37,7 +37,7 @@ export function updatePaper(
   return client.patch(`/papers/${id}`, patch);
 }
 
-/** U4 DELETE /papers/{id} — 删除我的论文（级联清理收藏/阅读/笔记关联） */
+/** U4 DELETE /papers/{id} — 逻辑删除论文，保留收藏、阅读、笔记与处理历史 */
 export function deleteMyPaper(client: ApiClient, id: number): Promise<boolean> {
   return client.delete(`/papers/${id}`);
 }

@@ -4,14 +4,14 @@
 
 优先级：用户明确指令 > 根目录 BUSINESS_RULES.md > paperhub-api/api-spec.md 与 ts/types.ts > db/schema.sql > 第一阶段规划书。冲突先统一契约，不在 Controller 临时发明行为。
 
-后端围绕现有 Vue 3 功能开发，保留页面流程及已消费字段。Mock 的身份、数据和文件模拟不能作为生产实现。2026-11-07 已完成第1批Java工程与认证；后续按分批计划实施。
+后端围绕现有Vue3功能开发，保留页面流程及已消费字段。Mock的身份、数据和文件模拟不能作为生产实现。2026-11-08已完成第1批认证及第2批文件/论文核心，后续按分批计划实施。
 
 ## 技术基线
 
 - Java 8（source/target=1.8，最终使用 Java 8 实际运行验证）。Spring Boot 固定 2.7.18，Spring Framework/Security/Jackson 使用该 BOM；默认 Security 5.7.11。
 - MyBatis-Plus 固定 3.5.7，使用 mybatis-plus-boot-starter；该版本的分页依赖保持其受控版本。禁止同时引入独立 mybatis-spring-boot-starter；不使用 Boot 3 starter、Spring 6 或 Jakarta Servlet。
 - MySQL >=8.0.16，InnoDB/utf8mb4；Connector/J 使用 Boot BOM 的 com.mysql:mysql-connector-j:8.0.33；Maven >=3.6.3。
-- JWT 使用 JJWT 0.11.5 的 api/impl/jackson；PDF 页数与格式校验使用 PDFBox 2.0.35。首次建 pom 时核对制品、JDK 要求、传递依赖和安全扫描；第1批已创建pom并完成现用依赖的构建/Java8验证；PDFBox将在第2批实际引入时再次验证。
+- JWT使用JJWT 0.11.5的api/impl/jackson；PDF校验使用PDFBox 2.0.35。第2批已实际引入并通过Java8构建/运行、运行时字节码及OSV扫描；全栈当前62个运行时JAR，已知公告门禁见SECURITY_AUDIT.md。
 - Boot 2.7 社区支持已结束；上线前需要依赖安全扫描和补丁安排，不擅自升级用户指定主框架。
 - MyBatis-Plus ID 明确 IdType.AUTO，对应 SQL AUTO_INCREMENT，不使用默认雪花 ID。API number 型 ID 必须 <= Number.MAX_SAFE_INTEGER，越界先迁移契约为字符串。
 

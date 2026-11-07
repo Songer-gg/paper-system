@@ -114,12 +114,14 @@ ReadingRecord={paperId,status,addedAt,lastReadAt}；状态固定 unread/reading/
 | ---- | ------ | -------------- | ------------------------------------------- | ------------------------------------------------------ |
 | P1   | GET    | /me/profile    | 无                                          | MyProfile，含avatar/uploadedCount，统计由后端计算      |
 | P2   | PATCH  | /me/profile    | `{name?,email?}`                            | MyProfile，邮箱必填且唯一                              |
-| P3   | PUT    | /me/avatar     | multipart file                              | MyProfile，avatar为受控图片URL，不存dataURL            |
+| P3   | PUT    | /me/avatar     | multipart file                              | MyProfile，avatar返回经校验重编码的dataURL；数据库仅存内部短键 |
 | P4   | PUT    | /me/password   | `{oldPassword,newPassword,confirmPassword}` | `{ok:true,message}`；错误走统一非0 code                |
 | P5   | GET    | /me/dashboard  | 无                                          | UserDashboard，保持前端counts及recent数据结构          |
 | P6   | GET    | /me/statistics | 无                                          | UserStatistics，monthlyReadingTrend含month/label/count |
 
 P5/P6所有统计按本人归属；月度趋势按lastReadAt归月，最近12个月补零。上传数=本人未删除私有+共享；共享数含各审核状态。收藏计数与R1可见列表一致，已读数与R3可见记录一致。
+
+头像最大2MiB、2048×2048，只接受实际PNG/JPEG并重编码为PNG。P1/P2/P3的avatar字符串用于现有img展示；dataURL只在已认证响应中生成，不写入VARCHAR(255)，不新增公开文件端点。
 
 ## 8. 管理员
 
