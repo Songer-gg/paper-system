@@ -18,6 +18,13 @@ public class AuditService {
     public void sensitive(SessionPrincipal actor, long paperId, long ownerId, String action, boolean success) {
         append(actor, "敏感数据访问", "paperId=" + paperId + ";ownerId=" + ownerId + ";action=" + action, success);
     }
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sensitiveResources(SessionPrincipal actor, String kind, java.util.Map<Long,Long> owners,
+                                   String action, boolean success) {
+        for (java.util.Map.Entry<Long,Long> resource : owners.entrySet())
+            append(actor, "敏感数据访问", kind + "Id=" + resource.getKey() + ";ownerId=" + resource.getValue()
+                    + ";action=" + action, success);
+    }
     @Transactional(propagation = Propagation.MANDATORY)
     public void mutation(SessionPrincipal actor, String action, String target) {
         append(actor, action, target, true);

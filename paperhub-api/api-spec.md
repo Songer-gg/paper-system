@@ -80,7 +80,7 @@ U10 的 q 覆盖标题/作者/DOI/摘要/关键词/期刊；categoryId 含后代
 | K2   | POST   | /categories             | `{name,parentId}` | Category，归属由真实角色决定                 |
 | K3   | PATCH  | /categories/{id}        | `{name}`          | true                                         |
 | K4   | DELETE | /categories/{id}        | id                | string[]，已删除分类名；前端确认在请求前完成 |
-| K5   | POST   | /categories/{id}/move   | `{parentId:number | null}`                                       | true，服务端防环/归属校验 |
+| K5   | POST   | /categories/{id}/move   | `{parentId}`，number或null | true，服务端防环/归属校验 |
 | K6   | GET    | /categories/{id}/papers | id                | Paper[]，含后代且只返回调用者可见论文        |
 | K7   | GET    | /tags                   | 无                | Tag[]，包含 custom/paperCount                |
 | K8   | POST   | /tags                   | `{name,color}`    | Tag                                          |
@@ -89,6 +89,10 @@ U10 的 q 覆盖标题/作者/DOI/摘要/关键词/期刊；categoryId 含后代
 | K11  | GET    | /tags/{id}/papers       | id                | Paper[]，按可见性过滤                        |
 
 同归属、同父级分类重名1004；标签同归属重名1004。Category.desc 映射 description。分类删除含子树、论文只解除关联；含其他用户自定义子节点时1004，不能未经授权级联。共享论文仅使用平台分类标签。
+
+名称1–50字符；标签color为#RRGGBB，响应规范为大写。K5必须显式提供parentId，null表示移动到根级。创建、移动的整棵子树最多10层；成环、超深及跨归属挂接返回1006。平台项普通用户只读（修改1002）；其他用户的自定义项不可见（1003）。
+
+K1/K6/K7/K11使用同一论文可见范围：本人未删除论文及已通过共享；管理员为全部未删除论文。分类计数包含后代，每篇在每个祖先只计一次。管理员读取自定义项、私有论文计数或列表先写独立审计，失败拒绝返回。K4/K10同时递增受影响论文version并保留文件和历史；平台字典维护不改变论文审核状态。
 
 ## 6. 收藏、阅读、笔记
 

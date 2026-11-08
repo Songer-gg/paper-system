@@ -143,12 +143,31 @@ def smoke(backend, env):
                 assert error.code == 401 and json.load(error)['code'] == 1001
             base = url.rsplit('/auth/login', 1)[0]
             headers = {'Authorization': 'Bearer ' + result['data']['token']}
+            def api(method, path, payload=None):
+                request_headers = dict(headers)
+                body = None
+                if payload is not None:
+                    body = json.dumps(payload).encode()
+                    request_headers['Content-Type'] = 'application/json'
+                request = urllib.request.Request(base + path, body, request_headers, method=method)
+                with urllib.request.urlopen(request, timeout=10) as response:
+                    envelope = json.load(response)
+                assert envelope['code'] == 0
+                return envelope['data']
+            marker = secrets.token_hex(8)
+            category = api('POST', '/categories', {'name': 'HTTP root ' + marker, 'parentId': None})
+            child = api('POST', '/categories', {'name': 'HTTP child ' + marker, 'parentId': category['id']})
+            api('PATCH', '/categories/' + str(child['id']), {'name': 'HTTP renamed ' + marker})
+            api('POST', '/categories/' + str(child['id']) + '/move', {'parentId': None})
+            api('POST', '/categories/' + str(child['id']) + '/move', {'parentId': category['id']})
+            tag = api('POST', '/tags', {'name': 'HTTP tag ' + marker, 'color': '#2563EB'})
+            api('PATCH', '/tags/' + str(tag['id']), {'name': 'HTTP tag updated ' + marker, 'color': '#15803D'})
             fixture = next((Path(env['PAPERHUB_STORAGE_ROOT']) / 'papers').glob('*.pdf'))
             pdf = fixture.read_bytes()
             boundary = 'PaperHub' + secrets.token_hex(16)
             payload = {'title': 'HTTP smoke ' + secrets.token_hex(8), 'authors': ['Smoke author'],
-                       'abstract': 'Real HTTP multipart verification', 'year': 2026, 'categoryId': 1,
-                       'tagIds': [], 'keywords': [], 'visibility': 'private', 'copyrightAgreed': False}
+                       'abstract': 'Real HTTP multipart verification', 'year': 2026, 'categoryId': child['id'],
+                       'tagIds': [tag['id']], 'keywords': [], 'visibility': 'private', 'copyrightAgreed': False}
             multipart = (('--' + boundary + '\r\nContent-Disposition: form-data; name="payload"\r\n'
                           'Content-Type: application/json\r\n\r\n').encode() + json.dumps(payload).encode() +
                          ('\r\n--' + boundary + '\r\nContent-Disposition: form-data; name="file"; '
@@ -159,6 +178,12 @@ def smoke(backend, env):
             with urllib.request.urlopen(request, timeout=10) as response:
                 paper_id = json.load(response)['data']['id']
             resource = base + '/papers/' + str(paper_id)
+            category_list = api('GET', '/categories')
+            assert all(item['ownerId'] in (None, 1) for item in category_list)
+            assert next(item for item in category_list if item['id'] == category['id'])['paperCount'] == 1
+            assert next(item for item in api('GET', '/tags') if item['id'] == tag['id'])['paperCount'] == 1
+            assert [item['id'] for item in api('GET', '/categories/' + str(category['id']) + '/papers')] == [paper_id]
+            assert [item['id'] for item in api('GET', '/tags/' + str(tag['id']) + '/papers')] == [paper_id]
             for suffix, method, disposition in [('/file', 'GET', 'inline'), ('/download', 'POST', 'attachment')]:
                 request = urllib.request.Request(resource + suffix, headers=headers, method=method)
                 with urllib.request.urlopen(request, timeout=10) as response:
@@ -167,6 +192,12 @@ def smoke(backend, env):
                     assert response.read() == pdf
             with urllib.request.urlopen(urllib.request.Request(resource, headers=headers), timeout=10) as response:
                 assert json.load(response)['data']['downloads'] == 1
+            assert len(api('DELETE', '/categories/' + str(category['id']))) == 2
+            assert api('DELETE', '/tags/' + str(tag['id'])) is True
+            detached = api('GET', '/papers/' + str(paper_id))
+            assert detached['categoryId'] is None and detached['tagIds'] == []
+            with urllib.request.urlopen(urllib.request.Request(resource + '/file', headers=headers), timeout=10) as response:
+                assert response.read() == pdf
             with urllib.request.urlopen(urllib.request.Request(resource, headers=headers, method='DELETE'), timeout=10) as response:
                 assert json.load(response)['data'] is True
             try:
@@ -174,7 +205,7 @@ def smoke(backend, env):
                 raise AssertionError('Deleted PDF unexpectedly remained accessible')
             except urllib.error.HTTPError as error:
                 assert error.code == 404 and json.load(error)['code'] == 1003
-            print('PASS: packaged Java 8 HTTP login, anonymous 401, multipart upload, preview/download bytes, counter and logical delete')
+            print('PASS: Java 8 packaged HTTP login, K1-K11 dictionary lifecycle/counts, PDF upload/bytes, counter and logical delete')
         finally:
             app.terminate()
             try:

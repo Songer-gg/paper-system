@@ -5,6 +5,7 @@ import cn.paperhub.auth.mapper.UserAccountMapper;
 import cn.paperhub.common.api.ErrorCode;
 import cn.paperhub.common.exception.BusinessException;
 import cn.paperhub.common.storage.*;
+import cn.paperhub.knowledge.service.KnowledgeLocks;
 import cn.paperhub.paper.dto.*;
 import cn.paperhub.paper.entity.PaperEntity;
 import cn.paperhub.paper.mapper.PaperMapper;
@@ -32,10 +33,13 @@ public class PaperService {
     private final AuditService audit;
     private final JdbcTemplate jdbc;
     private final Clock clock;
+    private final KnowledgeLocks knowledgeLocks;
     public PaperService(PaperMapper mapper, UserAccountMapper users, PaperValidation validation,
-                        LocalFileStorage storage, FileLifecycle files, AuditService audit, JdbcTemplate jdbc, Clock clock) {
+                        LocalFileStorage storage, FileLifecycle files, AuditService audit, JdbcTemplate jdbc, Clock clock,
+                        KnowledgeLocks knowledgeLocks) {
         this.mapper=mapper; this.users=users; this.validation=validation; this.storage=storage;
         this.files=files; this.audit=audit; this.jdbc=jdbc; this.clock=clock;
+        this.knowledgeLocks=knowledgeLocks;
     }
     @Transactional(readOnly=true)
     public Map<String, List<PaperView>> mine(SessionPrincipal actor) {
@@ -76,9 +80,11 @@ public class PaperService {
             throw new BusinessException(ErrorCode.BIZ_REJECTED, "共享上传必须确认版权授权");
         PaperEntity paper = new PaperEntity();
         apply(paper, input); paper.setVisibility(input.getVisibility()); paper.setUploaderId(actor.getId());
-        validation.validate(paper, input.getTagIds()); classify(paper, input.getTagIds());
+        validation.validate(paper, input.getTagIds());
         LocalFileStorage.Stored stored = storage.pdf(file);
         files.created(stored);
+        knowledgeLocks.beforePaperWrite();
+        classify(paper, input.getTagIds());
         paper.setFilePath(stored.key); paper.setFileSha256(stored.sha256); paper.setPageCount(stored.pages);
         paper.setFileSizeMb(BigDecimal.valueOf(stored.bytes).divide(BigDecimal.valueOf(1024L*1024), 2, RoundingMode.HALF_UP));
         paper.setUploadedAt(LocalDateTime.now(clock)); paper.setDownloads(0L); paper.setVersion(0L);
@@ -94,8 +100,10 @@ public class PaperService {
     }
     @Transactional(timeout=60, rollbackFor=Exception.class)
     public PaperView edit(long id, PaperEditRequest input, SessionPrincipal actor) {
-        PaperEntity paper = writable(id, actor);
+        PaperValidation.id(id);
         if (input.isEmpty()) PaperValidation.invalid();
+        knowledgeLocks.beforePaperWrite();
+        PaperEntity paper = writable(id, actor);
         List<Long> tags = input.supplied("tagIds") ? input.getTagIds() : mapper.tagIds(id);
         List<Object> before = signature(paper, mapper.tagIds(id));
         apply(paper, input); validation.validate(paper, tags); classify(paper, tags);
@@ -239,15 +247,7 @@ public class PaperService {
         return view(paper,actor,users.selectById(paper.getUploaderId()).getName(),mapper.tagIds(paper.getId()));
     }
     private PaperView view(PaperEntity p, SessionPrincipal actor, String name, List<Long> tags) {
-        PaperView v=new PaperView();
-        v.setId(p.getId()); v.setTitle(p.getTitle()); v.setAuthors(p.getAuthors()); v.setAbstractText(p.getAbstractText());
-        v.setDoi(p.getDoi()==null?"":p.getDoi()); v.setJournal(p.getJournal()==null?"":p.getJournal());
-        v.setYear(p.getYear()); v.setKeywords(p.getKeywords()); v.setCategoryId(p.getCategoryId()); v.setTagIds(tags);
-        v.setVisibility(p.getVisibility()); v.setUploaderId(p.getUploaderId()); v.setUploaderName(name);
-        v.setUploadedAt(p.getUploadedAt()); v.setDownloads(p.getDownloads()); v.setFileSizeMB(p.getFileSizeMb());
-        v.setPageCount(p.getPageCount()); v.setReviewStatus(p.getReviewStatus()); v.setOfflineReason(p.getOfflineReason());
-        if(p.getUploaderId().equals(actor.getId()) || "admin".equals(actor.getRole())) v.setReviewComment(p.getReviewComment());
-        v.setLink(p.getLink()); return v;
+        return PaperViewFactory.create(p,actor,name,tags);
     }
 }
 
