@@ -55,8 +55,8 @@ U10 分页 page>=1，pageSize 默认10、范围1–100，返回 `{list,total}`�
 | U2   | GET    | /papers/{id}                  | id                                      | Paper；管理员访问私有论文审计                                    |
 | U3   | PATCH  | /papers/{id}                  | PaperEditPayload                        | Paper；本人/管理员可编辑，approved 编辑自动转 pending            |
 | U4   | DELETE | /papers/{id}                  | id                                      | true；本人/管理员逻辑删除，保留私人数据与历史                    |
-| U5   | PATCH  | /papers/{id}/review-flow      | `{action:share                          | unshare                                                          | resubmit,copyrightAgreed?}` | Paper；share 必须版权确认；unshare=offline/withdrawn，保留在共享记录 |
-| U6   | POST   | /papers/duplicate-check       | `{title?,doi?,fileSha256?}`             | `{level:doi                                                      | title                       | file                                                                 | none,message,paper?}`；不可见命中不返回 paper |
+| U5   | PATCH  | /papers/{id}/review-flow      | `{action,copyrightAgreed?}` | Paper；action为share/unshare/resubmit，版权及状态校验，撤回保留记录 |
+| U6   | POST   | /papers/duplicate-check       | `{title?,doi?,fileSha256?}` | DuplicateCheckResult；level为doi/title/file/none，不可见命中省略paper |
 | U7   | POST   | /papers                       | multipart file + payload(UploadPayload) | Paper；共享 pending，私有无审核状态；服务端最终查重              |
 | U8   | POST   | /papers/{id}/download         | id                                      | PDF attachment；原子增加 downloads；管理员私有访问审计           |
 | U9   | GET    | /papers/{id}/file             | id                                      | PDF inline；不增下载；同样鉴权及审计                             |
@@ -71,6 +71,10 @@ UploadPayload：title/authors[]/abstract/year/categoryId/tagIds[]/keywords[]/vis
 U10 的 q 覆盖标题/作者/DOI/摘要/关键词/期刊；categoryId 含后代；tagIds 以逗号分隔，匹配任意标签；year/journal 精确筛选。sort 仅 uploaded-desc/downloads-desc/year-desc，并加 id 稳定排序。总数对论文去重。
 
 状态机及并发：见业务规则第二、三节。禁止直接 PATCH reviewStatus。U6 的提示不能替代 U7/share/resubmit/approve/restore 最终验证。标题相似允许人工判断，精确 DOI/文件重复返回1004。
+
+U5仅上传者可用，管理员不能冒充；share须显式copyrightAgreed=true，resubmit历史缺少确认时也须传true。显式false拒绝；省略参数可沿用已有有效确认。私人分类标签须先经U3调整为平台项。share/resubmit/approve/restore检查实际PDF及服务器SHA-256；旧演示路径、缺失或变化的文件不能发布。
+
+U10的q最多255字符，tagIds最多50项；作者/关键词逐项检索，LIKE通配字符作为字面值。无匹配分类返回空结果。越界页返回空list及正确total。U12包含有公开论文的分类祖先，计数仅基于approved共享。
 
 ## 5. 分类、标签
 
@@ -152,17 +156,21 @@ P5/P6所有统计按本人归属；月度趋势按lastReadAt归月，最近12个
 | M17  | POST   | /admin/duplicates/{pairId}/confirm  | `{note}`                                             | true，pending→duplicate，新论文驳回                                       |
 | M18  | POST   | /admin/duplicates/{pairId}/distinct | `{note}`                                             | true，pending→distinct，不自动通过                                        |
 | M19  | POST   | /admin/duplicates/{pairId}/link     | `{note}`                                             | true，pending→linked，新论文驳回并关联原文                                |
-| M20  | GET    | /admin/duplicate-records            | 无                                                   | DuplicateRecord[]={id,pairId,paperTitle,action,note,handlerId,handledAt}  |
+| M20  | GET    | /admin/duplicate-records            | 无                                                   | DuplicateRecord[]={id,pairId,paperTitle,action,note,handlerId,handlerName,handledAt} |
 | M21  | GET    | /admin/reports                      | status=all/pending/resolved                          | ReportItem[]，含createdAt及paperTitle快照                                 |
 | M22  | POST   | /admin/reports/{id}/resolve         | `{result,offlinePaperToo}`                           | true；举报处理与可选下架同事务，重复处理1004                              |
 | M23  | GET    | /admin/report-records               | 无                                                   | 已处理ReportItem[]                                                        |
 | M24  | GET    | /admin/logs                         | action=all或具体类型                                 | OperationLog[]，含敏感数据访问记录                                        |
 | M25  | GET    | /admin/settings                     | 无                                                   | PlatformSettings，maxUploadMB=100，只读                                   |
 | M26  | GET    | /admin/users/{id}/favorites         | id                                                   | FavoriteRecord[]，敏感读取先审计；失效paper=null                          |
-| M27  | GET    | /admin/users/{id}/reading-records   | id                                                   | AdminReadingRecord[]，含paper:Paper                                       | null，敏感读取先审计 |
+| M27  | GET    | /admin/users/{id}/reading-records   | id                                                   | AdminReadingRecord[]，paper可为null，敏感读取先审计 |
 | M28  | GET    | /admin/users/{id}/notes             | id                                                   | Note[]，敏感读取先审计，原论文失效仍返回私人笔记                          |
 
 DuplicatePair={id,originalPaperId,newPaperId,doiMatch,titleSimilarity,fileHashMatch,status,submittedAt,handledAt?,handlerNote?}。status=pending/duplicate/distinct/linked；DuplicateRecord.action=duplicate/distinct/linked。已处理对不可覆盖；关联ID通过逻辑删除保留。
+
+M13要求用户版权已确认及请求copyrightConfirmed=true；M14驳回原因不得为空白。M9没有原因输入，使用固定“管理员下架”原因；M10不能恢复withdrawn，且重新检查文件、版权、精确重复和待处理疑似对。重复审核/状态冲突返回1004。
+
+任一侧有pending疑似对时不能通过；最终扫描新发现证据时先提交证据及失败日志，再返回1006，审核状态和流水不变。M17/M19驳回pending/approved新论文并写流水；withdrawn/moderation/已删除论文仅关闭历史疑似对，保留原状态。M19原文须为已通过、未删除共享。相同DOI/文件不能标记distinct；distinct不自动批准。M20直接由已处理duplicate_pair生成稳定记录，paperTitle为首次比对快照。
 
 管理员查询用户论文不会赋予普通用户权限。审核/下架/删除/用户管理/重复处理/举报处理自动写操作日志；敏感读取的日志必须在内容返回前成功持久化。paperTitle使用快照，不能因为论文改名或删除丢失含义。审核记录返回uploaderName/reviewerName，重复处理记录返回handlerName，举报返回reporterName，均由服务端关联用户取得，普通页面不靠管理员用户列表解析名字。
 

@@ -17,6 +17,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 from database_structure import STRUCTURE_SQL, decode_inventory
 
 FLAGS = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
@@ -143,8 +144,10 @@ def smoke(backend, env):
                 assert error.code == 401 and json.load(error)['code'] == 1001
             base = url.rsplit('/auth/login', 1)[0]
             headers = {'Authorization': 'Bearer ' + result['data']['token']}
-            def api(method, path, payload=None):
+            def api(method, path, payload=None, token=None):
                 request_headers = dict(headers)
+                if token:
+                    request_headers['Authorization'] = 'Bearer ' + token
                 body = None
                 if payload is not None:
                     body = json.dumps(payload).encode()
@@ -154,6 +157,17 @@ def smoke(backend, env):
                     envelope = json.load(response)
                 assert envelope['code'] == 0
                 return envelope['data']
+            def submit(payload, document):
+                boundary = 'PaperHub' + secrets.token_hex(16)
+                multipart = (('--' + boundary + '\r\nContent-Disposition: form-data; name="payload"\r\n'
+                              'Content-Type: application/json\r\n\r\n').encode() + json.dumps(payload).encode() +
+                             ('\r\n--' + boundary + '\r\nContent-Disposition: form-data; name="file"; '
+                              'filename="smoke.pdf"\r\nContent-Type: application/pdf\r\n\r\n').encode() + document +
+                             ('\r\n--' + boundary + '--\r\n').encode())
+                request = urllib.request.Request(base + '/papers', multipart,
+                          dict(headers, **{'Content-Type': 'multipart/form-data; boundary=' + boundary}), method='POST')
+                with urllib.request.urlopen(request, timeout=10) as response:
+                    return json.load(response)['data']
             marker = secrets.token_hex(8)
             category = api('POST', '/categories', {'name': 'HTTP root ' + marker, 'parentId': None})
             child = api('POST', '/categories', {'name': 'HTTP child ' + marker, 'parentId': category['id']})
@@ -164,19 +178,10 @@ def smoke(backend, env):
             api('PATCH', '/tags/' + str(tag['id']), {'name': 'HTTP tag updated ' + marker, 'color': '#15803D'})
             fixture = next((Path(env['PAPERHUB_STORAGE_ROOT']) / 'papers').glob('*.pdf'))
             pdf = fixture.read_bytes()
-            boundary = 'PaperHub' + secrets.token_hex(16)
             payload = {'title': 'HTTP smoke ' + secrets.token_hex(8), 'authors': ['Smoke author'],
                        'abstract': 'Real HTTP multipart verification', 'year': 2026, 'categoryId': child['id'],
                        'tagIds': [tag['id']], 'keywords': [], 'visibility': 'private', 'copyrightAgreed': False}
-            multipart = (('--' + boundary + '\r\nContent-Disposition: form-data; name="payload"\r\n'
-                          'Content-Type: application/json\r\n\r\n').encode() + json.dumps(payload).encode() +
-                         ('\r\n--' + boundary + '\r\nContent-Disposition: form-data; name="file"; '
-                          'filename="smoke.pdf"\r\nContent-Type: application/pdf\r\n\r\n').encode() + pdf +
-                         ('\r\n--' + boundary + '--\r\n').encode())
-            request = urllib.request.Request(base + '/papers', multipart,
-                      dict(headers, **{'Content-Type': 'multipart/form-data; boundary=' + boundary}), method='POST')
-            with urllib.request.urlopen(request, timeout=10) as response:
-                paper_id = json.load(response)['data']['id']
+            paper_id = submit(payload, pdf)['id']
             resource = base + '/papers/' + str(paper_id)
             category_list = api('GET', '/categories')
             assert all(item['ownerId'] in (None, 1) for item in category_list)
@@ -205,7 +210,60 @@ def smoke(backend, env):
                 raise AssertionError('Deleted PDF unexpectedly remained accessible')
             except urllib.error.HTTPError as error:
                 assert error.code == 404 and json.load(error)['code'] == 1003
-            print('PASS: Java 8 packaged HTTP login, K1-K11 dictionary lifecycle/counts, PDF upload/bytes, counter and logical delete')
+            administrator = api('POST', '/auth/login', {'username': 'admin', 'password': 'admin123', 'role': 'admin'})
+            admin_token = administrator['token']
+            def admin_api(method, path, body=None):
+                return api(method, path, body, token=admin_token)
+            def expect_error(method, path, body, status, code, administrative=False):
+                try:
+                    api(method, path, body, token=admin_token if administrative else None)
+                    raise AssertionError('Expected a protected business rejection')
+                except urllib.error.HTTPError as error:
+                    assert error.code == status and json.load(error)['code'] == code
+            title = 'HTTP shared ' + marker
+            def shared():
+                values = dict(payload, title=title, categoryId=1, tagIds=[], visibility='shared',
+                              copyrightAgreed=True, doi='10.9999/http-' + secrets.token_hex(12))
+                # A valid PDF comment creates an independent byte fixture without touching real files.
+                document = pdf + b'\n% PaperHub HTTP fixture ' + secrets.token_hex(16).encode() + b'\n'
+                return submit(values, document)
+            original = shared()
+            pid = original['id']
+            assert api('POST', '/papers/duplicate-check', {'doi': original['doi']})['level'] == 'doi'
+            query = urllib.parse.urlencode({'title': title, 'uploader': '林', 'status': 'pending'})
+            assert [item['id'] for item in admin_api('GET', '/admin/papers?' + query)] == [pid]
+            assert admin_api('GET', '/admin/papers/' + str(pid))['reviewStatus'] == 'pending'
+            assert pid in [item['id'] for item in admin_api('GET', '/admin/review/papers')['pending']]
+            admin_api('POST', '/admin/review/papers/' + str(pid) + '/approve', {'copyrightConfirmed': True, 'comment': 'HTTP verified'})
+            assert api('GET', '/shared-papers/' + str(pid))['reviewStatus'] == 'approved'
+            found = api('GET', '/shared-papers?' + urllib.parse.urlencode({'q': title, 'page': 1, 'pageSize': 10}))
+            assert found['total'] == 1 and found['list'][0]['id'] == pid
+            assert set(api('GET', '/shared-papers/filter-options')) == {'categories', 'tags', 'years', 'journals'}
+            admin_api('PATCH', '/admin/papers/' + str(pid) + '/offline')
+            admin_api('PATCH', '/admin/papers/' + str(pid) + '/restore')
+            api('PATCH', '/papers/' + str(pid) + '/review-flow', {'action': 'unshare'})
+            expect_error('PATCH', '/admin/papers/' + str(pid) + '/restore', None, 400, 1006, True)
+            api('PATCH', '/papers/' + str(pid) + '/review-flow', {'action': 'resubmit'})
+            admin_api('POST', '/admin/review/papers/' + str(pid) + '/reject', {'comment': 'HTTP reject'})
+            api('PATCH', '/papers/' + str(pid) + '/review-flow', {'action': 'resubmit'})
+            admin_api('POST', '/admin/review/papers/' + str(pid) + '/approve', {'copyrightConfirmed': True})
+            assert any(item['paperId'] == pid for item in admin_api('GET', '/admin/review/records?action=all'))
+            linked = shared()
+            pair = next(item for item in admin_api('GET', '/admin/duplicates?status=pending') if item['newPaperId'] == linked['id'])
+            expect_error('POST', '/admin/review/papers/' + str(linked['id']) + '/approve', {'copyrightConfirmed': True}, 400, 1006, True)
+            admin_api('POST', '/admin/duplicates/' + str(pair['id']) + '/link', {'note': 'HTTP linked'})
+            assert admin_api('GET', '/admin/papers/' + str(linked['id']))['reviewStatus'] == 'rejected'
+            distinct = shared()
+            pair2 = next(item for item in admin_api('GET', '/admin/duplicates?status=pending') if item['newPaperId'] == distinct['id'])
+            admin_api('POST', '/admin/duplicates/' + str(pair2['id']) + '/distinct', {'note': 'HTTP distinct'})
+            admin_api('POST', '/admin/review/papers/' + str(distinct['id']) + '/approve', {'copyrightConfirmed': True})
+            duplicate = shared()
+            pair3 = next(item for item in admin_api('GET', '/admin/duplicates?status=pending') if item['newPaperId'] == duplicate['id'])
+            admin_api('POST', '/admin/duplicates/' + str(pair3['id']) + '/confirm', {'note': 'HTTP duplicate'})
+            assert any(item['pairId'] == pair3['id'] and item['action'] == 'duplicate' for item in admin_api('GET', '/admin/duplicate-records'))
+            for item in [linked, distinct, duplicate, original]:
+                admin_api('DELETE', '/admin/papers/' + str(item['id']))
+            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12 and all M7-M20 sharing/review/duplicate commands')
         finally:
             app.terminate()
             try:
@@ -259,6 +317,8 @@ def main():
             code = build.wait()
         if code:
             raise RuntimeError('Maven verification failed; see target test reports')
+        database.sql("USE paperhub; UPDATE `user` SET status='active',token_version=0 WHERE id IN (1,2,101); "
+                     "UPDATE `user` SET role='user' WHERE id IN (1,2); UPDATE `user` SET role='admin' WHERE id=101;")
         smoke(backend, env)
 
 

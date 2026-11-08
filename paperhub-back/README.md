@@ -2,7 +2,9 @@
 
 Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8。
 
-已完成前3批，共20/67端点：A1认证、U1–U4/U7–U9/P3文件论文核心，以及K1–K11分类标签。包含平台/个人归属、分类树防环与深度、按可见性计数、关联删除事务和敏感读取审计。详见[第3批交付](BATCH_3_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端仍使用Mock；共享审核等按后续批次实施。应用启动不自动建库或导入账号。
+已完成前4批，共39/67端点：认证、文件论文核心、分类标签，以及U5/U6/U10–U12、M7–M20共享检索、版权校验、审核、撤回/下架恢复和重复处理。详见[第4批交付](BATCH_4_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端仍使用Mock，个人阅读等按后续批次实施。应用启动不自动建库或导入账号。
+
+8080提供受保护的后端API，直接浏览器访问可能返回1001；Vue页面从前端开发服务访问，通常为http://localhost:5173。真实前后端统一接入在第9批实施。
 
 ## 环境
 
@@ -100,7 +102,7 @@ python -B paperhub-back/scripts/verify_mysql.py `
 
 脚本创建临时 MySQL 数据目录、随机端口及临时应用账号；核对 @@datadir 后才导入结构和种子。随机数据库密码和 JWT 密钥仅通过子进程环境传入，测试完成关闭临时服务并清理目录。集成测试拒绝在没有隔离标记或数据目录不匹配时更新数据库。
 
-脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用，经真实HTTP覆盖K1–K11、登录、匿名401、multipart上传、PDF原字节、计数与删除后404。累计11项单元测试、58项真实MySQL集成测试。测试文件也在临时目录，不写本机存储。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
+脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用，经真实HTTP覆盖本批19个共享/审核端点、K1–K11、认证及PDF流程。累计15项单元测试、96项真实MySQL集成测试，共111项通过。测试文件也在临时目录，不写本机存储；本批没有执行现有库的测试CRUD。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
 
 依赖扫描：
 
@@ -113,4 +115,4 @@ python -B scripts/audit_dependencies.py
 
 业务规则见[BUSINESS_RULES.md](../BUSINESS_RULES.md)。管理员私有论文元数据/PDF审计已落地；他人收藏/阅读/笔记读取在第6批实施。
 
-历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)；本批交付及本机服务状态见[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。
+历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)、[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)；本批交付及本机状态见[BATCH_4_DELIVERY.md](BATCH_4_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。

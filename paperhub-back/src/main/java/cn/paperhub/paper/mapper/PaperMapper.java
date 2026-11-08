@@ -7,6 +7,12 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface PaperMapper extends BaseMapper<PaperEntity> {
+    @Select("SELECT * FROM paper WHERE id=#{id} FOR UPDATE")
+    @Results(id="lockedPaper",value={
+            @Result(column="authors",property="authors",typeHandler=StringListTypeHandler.class),
+            @Result(column="keywords",property="keywords",typeHandler=StringListTypeHandler.class),
+            @Result(column="abstract",property="abstractText")})
+    PaperEntity lockById(@Param("id") long id);
     @Select("SELECT id FROM paper WHERE id=#{id} AND deleted_at IS NULL FOR UPDATE")
     Long lockActive(@Param("id") long id);
 
@@ -25,11 +31,5 @@ public interface PaperMapper extends BaseMapper<PaperEntity> {
     @Update("UPDATE paper SET deleted_at=#{time},version=version+1 WHERE id=#{id} AND deleted_at IS NULL AND version=#{version}")
     int softDelete(@Param("id") long id, @Param("version") long version, @Param("time") java.time.LocalDateTime time);
 
-    @Insert("INSERT INTO duplicate_pair(original_paper_id,new_paper_id,original_paper_title,new_paper_title," +
-            "doi_match,file_hash_match,submitted_at,title_similarity,reason,status) " +
-            "VALUES(#{original.id},#{paper.id},#{original.title},#{paper.title},0,0,#{time},#{similarity}," +
-            "'标题相似，需人工判断','pending') ON DUPLICATE KEY UPDATE id=id")
-    int suspect(@Param("original") PaperEntity original, @Param("paper") PaperEntity paper,
-                @Param("time") java.time.LocalDateTime time, @Param("similarity") java.math.BigDecimal similarity);
 }
 

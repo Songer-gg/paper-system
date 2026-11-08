@@ -29,6 +29,10 @@ public class AuditService {
     public void mutation(SessionPrincipal actor, String action, String target) {
         append(actor, action, target, true);
     }
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void mutationResult(SessionPrincipal actor,String action,String target,boolean success) {
+        append(actor,action,target,success);
+    }
     private void append(SessionPrincipal actor, String action, String target, boolean success) {
         if (mapper.append(actor.getId(), action, target, success ? "成功" : "失败", LocalDateTime.now(clock)) != 1)
             throw new BusinessException(ErrorCode.SERVER_ERROR);

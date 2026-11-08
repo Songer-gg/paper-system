@@ -1,5 +1,5 @@
 /**
- * 管理员端接口（M1–M25，全部需 admin 角色，服务端校验）
+ * 管理员端接口（M1–M28，全部需 admin 角色，服务端校验）
  * 对应前端：adminService.ts、管理员端 14 页
  */
 import type { ApiClient } from "../http";

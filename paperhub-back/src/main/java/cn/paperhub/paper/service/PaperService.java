@@ -34,12 +34,15 @@ public class PaperService {
     private final JdbcTemplate jdbc;
     private final Clock clock;
     private final KnowledgeLocks knowledgeLocks;
+    private final SharedCatalogLock catalog;
+    private final DuplicateDetectionService duplicates;
     public PaperService(PaperMapper mapper, UserAccountMapper users, PaperValidation validation,
                         LocalFileStorage storage, FileLifecycle files, AuditService audit, JdbcTemplate jdbc, Clock clock,
-                        KnowledgeLocks knowledgeLocks) {
+                        KnowledgeLocks knowledgeLocks, SharedCatalogLock catalog, DuplicateDetectionService duplicates) {
         this.mapper=mapper; this.users=users; this.validation=validation; this.storage=storage;
         this.files=files; this.audit=audit; this.jdbc=jdbc; this.clock=clock;
         this.knowledgeLocks=knowledgeLocks;
+        this.catalog=catalog; this.duplicates=duplicates;
     }
     @Transactional(readOnly=true)
     public Map<String, List<PaperView>> mine(SessionPrincipal actor) {
@@ -83,6 +86,7 @@ public class PaperService {
         validation.validate(paper, input.getTagIds());
         LocalFileStorage.Stored stored = storage.pdf(file);
         files.created(stored);
+        if (shared) catalog.acquire();
         knowledgeLocks.beforePaperWrite();
         classify(paper, input.getTagIds());
         paper.setFilePath(stored.key); paper.setFileSha256(stored.sha256); paper.setPageCount(stored.pages);
@@ -91,9 +95,10 @@ public class PaperService {
         paper.setReviewStatus(shared ? "pending" : null);
         paper.setCopyrightAgreed(input.getCopyrightAgreed());
         paper.setCopyrightAgreedAt(input.getCopyrightAgreed() ? LocalDateTime.now(clock) : null);
+        if (shared) duplicates.requireUnique(paper);
         mapper.insert(paper); PaperValidation.id(paper.getId());
         replaceTags(paper.getId(), input.getTagIds());
-        if (shared) suspects(paper);
+        if (shared) duplicates.discover(paper,actor);
         audit.mutation(actor, "论文上传", target(paper));
         sensitive(actor, paper, "uploadedMetadata", true);
         return view(paper, actor);
@@ -102,11 +107,13 @@ public class PaperService {
     public PaperView edit(long id, PaperEditRequest input, SessionPrincipal actor) {
         PaperValidation.id(id);
         if (input.isEmpty()) PaperValidation.invalid();
+        catalog.acquire();
         knowledgeLocks.beforePaperWrite();
         PaperEntity paper = writable(id, actor);
         List<Long> tags = input.supplied("tagIds") ? input.getTagIds() : mapper.tagIds(id);
         List<Object> before = signature(paper, mapper.tagIds(id));
         apply(paper, input); validation.validate(paper, tags); classify(paper, tags);
+        if ("shared".equals(paper.getVisibility())) duplicates.requireUnique(paper);
         if (!before.equals(signature(paper, tags))) {
             if ("approved".equals(paper.getReviewStatus())) {
                 paper.setReviewStatus("pending"); paper.setReviewComment(null); paper.setOfflineReason(null);
@@ -115,7 +122,7 @@ public class PaperService {
             if (mapper.update(paper, new UpdateWrapper<PaperEntity>().eq("id", id)
                     .eq("version", version).isNull("deleted_at")) != 1) throw new BusinessException(ErrorCode.CONFLICT);
             replaceTags(id, tags);
-            if ("shared".equals(paper.getVisibility())) suspects(paper);
+            if ("shared".equals(paper.getVisibility())) duplicates.discover(paper,actor);
             audit.mutation(actor, "论文编辑", target(paper));
         }
         sensitive(actor, paper, "editedMetadata", true);
@@ -123,6 +130,7 @@ public class PaperService {
     }
     @Transactional(timeout=60, rollbackFor=Exception.class)
     public boolean delete(long id, SessionPrincipal actor) throws IOException {
+        PaperValidation.id(id); catalog.acquire();
         PaperEntity paper = writable(id, actor);
         files.deleting(paper.getFilePath());
         if (mapper.softDelete(id, paper.getVersion(), LocalDateTime.now(clock)) != 1)
@@ -152,12 +160,7 @@ public class PaperService {
     }
     private PaperEntity readable(long id, SessionPrincipal actor, boolean lock) {
         PaperValidation.id(id);
-        if (lock && mapper.lockActive(id) == null) {
-            PaperEntity missing = mapper.selectById(id);
-            if (missing != null) sensitive(actor, missing, "deletedFileAccessDenied", false);
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
-        PaperEntity paper = mapper.selectById(id);
+        PaperEntity paper = lock ? mapper.lockById(id) : mapper.selectById(id);
         if (paper == null) throw new BusinessException(ErrorCode.NOT_FOUND);
         if (paper.getDeletedAt() != null) {
             sensitive(actor, paper, "deletedAccessDenied", false);
@@ -214,20 +217,6 @@ public class PaperService {
         Collections.sort(sorted);
         return Arrays.asList(p.getTitle(),p.getAuthors(),p.getAbstractText(),p.getDoi(),p.getJournal(),
                 p.getYear(),p.getKeywords(),p.getCategoryId(),sorted,p.getLink());
-    }
-    private void suspects(PaperEntity paper) {
-        List<PaperEntity> candidates = mapper.selectList(new QueryWrapper<PaperEntity>()
-                .eq("visibility","shared").isNull("deleted_at").ne("review_status","rejected")
-                .ne("id",paper.getId()).orderByAsc("id"));
-        for (PaperEntity candidate : candidates) {
-            double similarity = titleSimilarity(candidate.getTitle(), paper.getTitle());
-            if (similarity >= 0.80) {
-                PaperEntity original = candidate.getId() < paper.getId() ? candidate : paper;
-                PaperEntity newer = original == paper ? candidate : paper;
-                mapper.suspect(original, newer, LocalDateTime.now(clock),
-                        BigDecimal.valueOf(similarity*100).setScale(2,RoundingMode.HALF_UP));
-            }
-        }
     }
     static double titleSimilarity(String one, String two) {
         String a=one.toLowerCase(Locale.ROOT).replaceAll("[\\p{P}\\p{Z}\\s]","");

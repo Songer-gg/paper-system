@@ -31,7 +31,8 @@ public class PaperListingService {
                 .apply("EXISTS (SELECT 1 FROM paper_tag pt WHERE pt.paper_id=paper.id AND pt.tag_id={0})",tagId)
                 .orderByDesc("uploaded_at","id")),actor,"tagPaperList");
     }
-    private List<PaperView> views(List<PaperEntity> papers, SessionPrincipal actor, String action) {
+    @Transactional(readOnly=true)
+    public List<PaperView> views(List<PaperEntity> papers, SessionPrincipal actor, String action) {
         Map<Long,Long> privateOwners=new LinkedHashMap<>();
         Set<Long> uploaders=new LinkedHashSet<>();
         List<Long> ids=new ArrayList<>();

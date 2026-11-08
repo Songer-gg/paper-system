@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class PaperValidation {
+    private final java.time.Clock clock;
+    public PaperValidation(java.time.Clock clock) { this.clock=clock; }
     public static final long MAX_ID = 9007199254740991L;
     public static void invalid() { throw new BusinessException(ErrorCode.INVALID_PARAM); }
     public static void id(Long id) { if (id == null || id < 1 || id > MAX_ID) invalid(); }
@@ -41,7 +43,8 @@ public class PaperValidation {
         paper.setDoiNormalized(normalizeDoi(paper.getDoi()));
         paper.setJournal(text(paper.getJournal(), 255, false));
         paper.setKeywords(strings(paper.getKeywords(), false));
-        if (paper.getYear() == null || paper.getYear() < 1000 || paper.getYear() > 9999) invalid();
+        if (paper.getYear() == null || paper.getYear() < 1000 ||
+                paper.getYear() > java.time.Year.now(clock).getValue()+1) invalid();
         if (paper.getCategoryId() != null) id(paper.getCategoryId());
         if (tags == null || tags.size() > 50 || new HashSet<>(tags).size() != tags.size()) invalid();
         for (Long tag : tags) id(tag);
