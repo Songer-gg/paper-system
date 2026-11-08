@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue'
 import * as admin from '@/services/adminService'
 import type { DuplicateRecord } from '@/types/admin'
-import { getUserName } from '@/mocks/users'
 
 const loading = ref(true)
 const records = ref<DuplicateRecord[]>([])
@@ -71,9 +70,7 @@ onMounted(fetchRecords)
           </template>
         </el-table-column>
         <el-table-column label="处理人" width="90">
-          <template #default="{ row }">{{
-            row.handlerName ?? getUserName(row.handlerId)
-          }}</template>
+          <template #default="{ row }">{{ row.handlerName || '—' }}</template>
         </el-table-column>
         <el-table-column prop="handledAt" label="处理时间" width="140" />
       </el-table>

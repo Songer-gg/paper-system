@@ -21,3 +21,11 @@ app.use(createPinia())
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })
 app.mount('#app')
+window.addEventListener('paperhub:unauthorized', () => {
+  void router.replace({ path: '/login' }).catch(reportActionError)
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  event.preventDefault()
+  reportActionError(event.reason)
+})

@@ -113,9 +113,12 @@ class TemporaryMySql:
         shutil.rmtree(self.root)
 
 
-def smoke(backend, env, database):
+def smoke(backend, env, database, frontend_e2e=False):
     jar = backend / 'target' / 'paperhub-back-0.1.0-SNAPSHOT.jar'
     app_env = dict(env, PAPERHUB_PORT=str(free_port()))
+    browser_base = 'http://127.0.0.1:' + str(free_port()) if frontend_e2e else None
+    if browser_base:
+        app_env['PAPERHUB_ALLOWED_ORIGINS'] = browser_base
     log_path = backend / 'target' / 'application-smoke.log'
     java = Path(env['JAVA_HOME']) / 'bin' / ('java.exe' if os.name == 'nt' else 'java')
     with log_path.open('wb') as log:
@@ -404,6 +407,32 @@ def smoke(backend, env, database):
             coverage = {'expected': len(endpoints), 'covered': sum(row['covered'] for row in endpoints), 'endpoints': endpoints}
             (backend / 'target' / 'http-endpoint-coverage.json').write_text(json.dumps(coverage, indent=2), encoding='utf-8')
             assert coverage['expected'] == 67 and coverage['covered'] == 67, [row['id'] for row in endpoints if not row['covered']]
+            if frontend_e2e:
+                fixture = database.root / 'browser-fixture.pdf'
+                fixture.write_bytes(pdf)
+                user_a, user_b = 'browser_a_' + secrets.token_hex(4), 'browser_b_' + secrets.token_hex(4)
+                # Only this verified disposable database receives browser test actors.
+                for username in (user_a, user_b):
+                    database.sql("USE paperhub; INSERT INTO `user`(username,password,name,email,role,status) "
+                                 "SELECT '" + username + "',password,'" + username + "','" + username +
+                                 "@example.com','user','active' FROM `user` WHERE id=2;")
+                database.sql("USE paperhub; UPDATE paper SET uploaded_at='2020-01-01 00:00:00' WHERE title LIKE 'Statistics %';")
+                browser_env = dict(env, PAPERHUB_E2E_ISOLATED='true',
+                    PAPERHUB_E2E_BASE_URL=browser_base,
+                    PAPERHUB_API_PROXY='http://127.0.0.1:' + app_env['PAPERHUB_PORT'],
+                    PAPERHUB_E2E_USER_A=user_a, PAPERHUB_E2E_USER_B=user_b,
+                    PAPERHUB_E2E_PDF=str(fixture), VITE_USE_MOCK='false', VITE_API_BASE_URL='/api/v1')
+                npm = shutil.which('npm.cmd' if os.name == 'nt' else 'npm')
+                if not npm:
+                    raise RuntimeError('npm is required for the requested browser verification')
+                browser_log = backend / 'target/frontend-e2e-console.log'
+                with browser_log.open('wb') as output:
+                    result = subprocess.run([npm, 'run', 'test:e2e'], cwd=backend.parent / 'paperhub-frontend',
+                                            env=browser_env, stdout=output, stderr=subprocess.STDOUT,
+                                            timeout=600, creationflags=FLAGS)
+                if result.returncode:
+                    raise RuntimeError('Browser verification failed; see target/frontend-e2e-console.log')
+                print('PASS: isolated real frontend browser workflows')
             print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M1-M28, R1-R9 and P1-P6; all 67 API endpoints')
         finally:
             app.terminate()
@@ -419,6 +448,7 @@ def main():
     parser.add_argument('--mysql-bin', required=True)
     parser.add_argument('--maven', default=shutil.which('mvn') or shutil.which('mvn.cmd'))
     parser.add_argument('--java-home', default=os.environ.get('JAVA_HOME'))
+    parser.add_argument('--frontend-e2e', action='store_true', help='Run the real frontend against this disposable MySQL/application')
     args = parser.parse_args()
     if not args.maven or not args.java_home:
         parser.error('Set --maven and --java-home or configure Maven/JAVA_HOME')
@@ -460,7 +490,7 @@ def main():
             raise RuntimeError('Maven verification failed; see target test reports')
         database.sql("USE paperhub; UPDATE `user` SET status='active',token_version=0 WHERE id IN (1,2,101); "
                      "UPDATE `user` SET role='user' WHERE id IN (1,2); UPDATE `user` SET role='admin' WHERE id=101;")
-        smoke(backend, env, database)
+        smoke(backend, env, database, args.frontend_e2e)
 
 
 if __name__ == '__main__':

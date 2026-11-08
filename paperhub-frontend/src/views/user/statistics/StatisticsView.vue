@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { onMounted, ref } from 'vue'
 import * as echarts from 'echarts'
 import VChart from '@/components/charts/VChart.vue'
@@ -14,9 +15,15 @@ const stat = ref<Awaited<ReturnType<typeof getUserStatistics>> | null>(null)
 const profile = ref<MyProfile | null>(null)
 
 onMounted(async () => {
-  stat.value = await getUserStatistics()
-  profile.value = await getMyProfile()
-  loading.value = false
+  try {
+    stat.value = await getUserStatistics()
+    profile.value = await getMyProfile()
+    loading.value = false
+  } catch (error) {
+    reportActionError(error)
+  } finally {
+    loading.value = false
+  }
 })
 
 /* ---------------- 图表配置 ---------------- */

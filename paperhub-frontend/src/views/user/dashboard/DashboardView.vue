@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { EChartsOption } from 'echarts'
@@ -17,8 +18,14 @@ const loading = ref(true)
 const data = ref<UserDashboard | null>(null)
 
 onMounted(async () => {
-  data.value = await getUserDashboard()
-  loading.value = false
+  try {
+    data.value = await getUserDashboard()
+    loading.value = false
+  } catch (error) {
+    reportActionError(error)
+  } finally {
+    loading.value = false
+  }
 })
 
 const greeting = computed(() => {
@@ -52,7 +59,7 @@ const statCards = computed(() => {
     {
       label: '私有论文',
       value: c?.private ?? 0,
-      caption: '仅自己可见',
+      caption: '本人管理 · 受控访问',
       icon: 'Lock',
       iconBg: '#F0FDF4',
       iconColor: '#16A34A',

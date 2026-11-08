@@ -6,7 +6,6 @@ import * as admin from '@/services/adminService'
 import type { Paper } from '@/types/paper'
 import { reviewStatusLabels } from '@/types/paper'
 import { getCategory } from '@/services/knowledgeService'
-import { getUserName } from '@/mocks/users'
 import type { DuplicatePair } from '@/types/admin'
 
 const loading = ref(true)
@@ -133,9 +132,7 @@ async function reject() {
             </template>
           </el-table-column>
           <el-table-column label="上传者" width="100">
-            <template #default="{ row }">{{
-              row.uploaderName ?? getUserName(row.uploaderId)
-            }}</template>
+            <template #default="{ row }">{{ row.uploaderName || '—' }}</template>
           </el-table-column>
           <el-table-column label="作者" min-width="150" show-overflow-tooltip>
             <template #default="{ row }">{{ row.authors.join('、') }}</template>
@@ -221,7 +218,7 @@ async function reject() {
             {{ getCategory(current.categoryId)?.name ?? '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="上传者">
-            {{ current.uploaderName ?? getUserName(current.uploaderId) }}
+            {{ current.uploaderName || '—' }}
           </el-descriptions-item>
           <el-descriptions-item label="提交时间">{{ current.uploadedAt }}</el-descriptions-item>
         </el-descriptions>
@@ -232,6 +229,9 @@ async function reject() {
           <el-icon :size="30" class="pdf-icon"><Document /></el-icon>
           <div class="pdf-name">{{ current.title }}.pdf</div>
           <div class="pdf-meta">{{ current.pageCount }} 页 · {{ current.fileSizeMB }} MB</div>
+          <el-button type="primary" @click="$router.push(`/admin/papers/${current.id}/reader`)"
+            >预览 PDF</el-button
+          >
           <div class="pdf-auth">仅限审核授权范围内预览，不得用于其他用途</div>
         </div>
 

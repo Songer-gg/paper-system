@@ -56,10 +56,12 @@ export interface ApiClient {
 }
 
 export class ApiError extends Error {
+  public code: number;
   constructor(
-    public code: number,
+    code: number,
     message: string,
   ) {
     super(message);
+    this.code = code;
   }
 }

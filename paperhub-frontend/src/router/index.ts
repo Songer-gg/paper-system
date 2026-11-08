@@ -206,7 +206,7 @@ const router = createRouter({
 })
 
 /* 路由守卫：未登录跳转登录页；角色与端不匹配时回到对应首页 */
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
   if (to.path === '/login') {
@@ -220,6 +220,18 @@ router.beforeEach((to) => {
   const requiredRole = to.path.startsWith('/admin') ? 'admin' : 'user'
   if (auth.user?.role !== requiredRole) {
     return auth.homePath
+  }
+
+  try {
+    const [{ warmKnowledge }, { getFavorites }] = await Promise.all([
+      import('@/services/knowledgeService'),
+      import('@/services/userDataService'),
+    ])
+    await Promise.all([warmKnowledge(), getFavorites()])
+  } catch (error) {
+    const { reportActionError } = await import('@/utils/errors')
+    reportActionError(error)
+    if (!auth.isLoggedIn) return { path: '/login', query: { redirect: to.fullPath } }
   }
 
   return true

@@ -71,7 +71,7 @@ async function resetPassword(u: AdminUser) {
     )
     const newPwd = await admin.resetUserPassword(u.id)
     await ElMessageBox.alert(
-      `「${u.name}」的密码已重置为：${newPwd}（演示环境，请提醒用户首次登录后修改）`,
+      `「${u.name}」的密码已重置为：${newPwd}（请提醒用户及时修改，关闭后不会再次显示）`,
       '重置成功',
       { confirmButtonText: '知道了', type: 'success' },
     )

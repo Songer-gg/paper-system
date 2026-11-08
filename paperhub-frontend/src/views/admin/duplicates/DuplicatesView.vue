@@ -99,9 +99,7 @@ function goRecords() {
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">疑似重复论文</h2>
-        <p class="ph-page-desc">
-          基于 DOI、标题相似度与文件哈希的比对提示（模拟结果），需人工判断处理
-        </p>
+        <p class="ph-page-desc">基于 DOI、标题相似度与文件哈希的比对提示，需人工判断处理</p>
       </div>
       <el-button plain type="primary" @click="goRecords">查看处理记录</el-button>
     </div>

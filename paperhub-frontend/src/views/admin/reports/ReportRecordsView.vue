@@ -3,31 +3,19 @@ import { onMounted, ref } from 'vue'
 import * as admin from '@/services/adminService'
 import type { ReportItem } from '@/types/admin'
 import { reportTypeLabels } from '@/types/admin'
-import type { Paper } from '@/types/paper'
-import { getUserName } from '@/mocks/users'
 
 const loading = ref(true)
 const records = ref<ReportItem[]>([])
-const paperMap = ref<Map<number, Paper>>(new Map())
 
 async function fetchRecords() {
   loading.value = true
   try {
-    const [list, papers] = await Promise.all([
-      admin.getReports('resolved'),
-      admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
-    ])
-    paperMap.value = new Map(papers.map((p) => [p.id, p]))
-    records.value = list
+    records.value = await admin.getReportRecords()
   } finally {
     loading.value = false
   }
 }
 onMounted(fetchRecords)
-
-function titleOf(id: number): string {
-  return paperMap.value.get(id)?.title ?? `论文 #${id}`
-}
 
 function typeLabel(t: ReportItem['type']): string {
   return reportTypeLabels[t]
@@ -54,12 +42,10 @@ function typeLabel(t: ReportItem['type']): string {
           <template #default="{ row }">{{ typeLabel(row.type) }}</template>
         </el-table-column>
         <el-table-column label="被举报论文" min-width="220" show-overflow-tooltip>
-          <template #default="{ row }">{{ titleOf(row.paperId) }}</template>
+          <template #default="{ row }">{{ row.paperTitle || `论文 #${row.paperId}` }}</template>
         </el-table-column>
         <el-table-column label="举报人" width="90">
-          <template #default="{ row }">{{
-            row.reporterName ?? getUserName(row.reporterId)
-          }}</template>
+          <template #default="{ row }">{{ row.reporterName || '—' }}</template>
         </el-table-column>
         <el-table-column label="举报原因" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">{{ row.reason }}</template>

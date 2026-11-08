@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
+import { downloadPaper as savePaperFile } from '@/services/paperFiles'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { Paper } from '@/types/paper'
 import { searchSharedPapers, getFilterOptions, type SharedSortKey } from '@/services/paperService'
 import * as userData from '@/services/userDataService'
-import { getUserName } from '@/mocks/users'
 import { getCategory } from '@/services/knowledgeService'
 import { getTag } from '@/services/knowledgeService'
 import TagChip from '@/components/common/TagChip.vue'
@@ -58,9 +59,15 @@ const categoryTree = computed<TreeNodeOption[]>(() => {
 /* 顶部搜索的初始关键词（来自全局搜索跳转） */
 const route = useRoute()
 onMounted(async () => {
-  Object.assign(options, await getFilterOptions())
-  if (typeof route.query.q === 'string') filter.q = route.query.q
-  await fetchPapers()
+  try {
+    Object.assign(options, await getFilterOptions())
+    if (typeof route.query.q === 'string') filter.q = route.query.q
+    await fetchPapers()
+  } catch (error) {
+    reportActionError(error)
+  } finally {
+    loading.value = false
+  }
 })
 
 async function fetchPapers() {
@@ -119,8 +126,12 @@ function goReader(paper: Paper) {
   router.push(`/user/papers/${paper.id}/reader`)
 }
 
-function downloadPaper(paper: Paper) {
-  ElMessage.success(`已开始下载《${paper.title}》（模拟）`)
+async function downloadPaper(paper: Paper) {
+  try {
+    await savePaperFile(paper)
+  } catch (error) {
+    reportActionError(error)
+  }
 }
 
 function isFavorited(paper: Paper): boolean {
@@ -271,8 +282,7 @@ function categoryNames(paper: Paper): string {
                 ><el-icon><Download /></el-icon>{{ paper.downloads }}</span
               >
               <span class="side-uploader"
-                >{{ paper.uploaderName ?? getUserName(paper.uploaderId) }} ·
-                {{ paper.uploadedAt.slice(5, 16) }}</span
+                >{{ paper.uploaderName || '—' }} · {{ paper.uploadedAt.slice(5, 16) }}</span
               >
             </div>
             <div class="side-actions">
@@ -327,7 +337,7 @@ function categoryNames(paper: Paper): string {
           <div class="card-footer">
             <span class="side-uploader">
               <el-icon><Download /></el-icon>{{ paper.downloads }} ·
-              {{ paper.uploaderName ?? getUserName(paper.uploaderId) }}
+              {{ paper.uploaderName || '—' }}
             </span>
             <div class="side-actions">
               <el-button text circle size="small" :icon="'View'" @click="goReader(paper)" />

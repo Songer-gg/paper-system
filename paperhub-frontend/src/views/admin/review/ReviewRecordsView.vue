@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue'
 import * as admin from '@/services/adminService'
 import type { ReviewRecord } from '@/types/admin'
-import { getUserName } from '@/mocks/users'
 
 const loading = ref(true)
 const records = ref<ReviewRecord[]>([])
@@ -47,9 +46,7 @@ onMounted(fetchRecords)
           </template>
         </el-table-column>
         <el-table-column label="上传者" width="100">
-          <template #default="{ row }">{{
-            row.uploaderName ?? getUserName(row.uploaderId)
-          }}</template>
+          <template #default="{ row }">{{ row.uploaderName || '—' }}</template>
         </el-table-column>
         <el-table-column label="审核动作" width="90" align="center">
           <template #default="{ row }">
@@ -68,9 +65,7 @@ onMounted(fetchRecords)
           </template>
         </el-table-column>
         <el-table-column label="审核人" width="90">
-          <template #default="{ row }">{{
-            row.reviewerName ?? getUserName(row.reviewerId)
-          }}</template>
+          <template #default="{ row }">{{ row.reviewerName || '—' }}</template>
         </el-table-column>
         <el-table-column prop="reviewedAt" label="审核时间" width="140" />
       </el-table>

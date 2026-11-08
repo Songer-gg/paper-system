@@ -1,157 +1,81 @@
-import type { FavoriteRecord, Note, ReadingRecord, ReadingStatus } from '@/types/paper'
-import { seedFavoriteRecords, seedReadingRecords } from '@/mocks/user/reading'
-import { seedNotes } from '@/mocks/user/notes'
-import { currentUserId, loadPersonalJSON, savePersonalJSON } from '@/utils/personalStorage'
-
-const favorites = () =>
-  loadPersonalJSON<FavoriteRecord[]>(
-    'ph_favorites',
-    currentUserId() === 1 ? seedFavoriteRecords : [],
-  )
-const readings = () =>
-  loadPersonalJSON<ReadingRecord[]>('ph_reading', currentUserId() === 1 ? seedReadingRecords : [])
-const notes = () => loadPersonalJSON<Note[]>('ph_notes', currentUserId() === 1 ? seedNotes : [])
-const now = () => new Date().toLocaleString('sv-SE')
-async function visiblePaper(id: number) {
-  return (await import('@/services/myLibraryService')).getPaperForDetail(id)
-}
-
-export async function getFavorites(): Promise<FavoriteRecord[]> {
-  const result: FavoriteRecord[] = []
-  for (const record of favorites()) {
-    const paper = await visiblePaper(record.paperId)
-    if (paper?.visibility === 'shared' && paper.reviewStatus === 'approved')
-      result.push({ ...record })
-  }
-  return result
-}
-
-/** 同步缓存选择器；真实接入须先由 R1 初始化缓存。 */
+import * as requests from '../../../paperhub-api/ts/modules/reading'
+import type { NoteInput, ReadingStatus, FavoriteRecord } from '../../../paperhub-api/ts/types'
+import { useMock } from '@/config/runtime'
+import { apiClient } from './api'
+import { onSessionReset, sessionGeneration } from '@/utils/session'
+const favoriteIds = new Set<number>()
+onSessionReset(() => favoriteIds.clear())
 export function getFavoritePaperIds(): number[] {
-  return favorites().map((item) => item.paperId)
+  return [...favoriteIds]
 }
-
-export async function toggleFavorite(
-  paperId: number,
-  target?: boolean,
-): Promise<{ paperId: number; favorited: boolean }> {
-  const records = favorites()
-  const index = records.findIndex((item) => item.paperId === paperId)
-  const favorited = target ?? index < 0
-  if (favorited && index < 0) {
-    const paper = await visiblePaper(paperId)
-    if (!paper || paper.visibility !== 'shared' || paper.reviewStatus !== 'approved')
-      throw new Error('只能收藏可见共享论文')
-    records.unshift({ paperId, favoritedAt: now() })
-  } else if (!favorited && index >= 0) records.splice(index, 1)
-  savePersonalJSON('ph_favorites', records)
-  return { paperId, favorited }
-}
-
-export async function getReadingRecords(): Promise<ReadingRecord[]> {
-  const result: ReadingRecord[] = []
-  for (const record of readings()) {
-    if (await visiblePaper(record.paperId))
-      result.push({ ...record, addedAt: record.addedAt ?? record.lastReadAt })
+export async function getFavorites() {
+  const generation = sessionGeneration()
+  const result = useMock
+    ? await (await import('@/mocks/services/userDataService')).getFavorites()
+    : await requests.getFavorites(apiClient)
+  if (generation === sessionGeneration()) {
+    favoriteIds.clear()
+    for (const row of result) favoriteIds.add(row.paperId)
   }
   return result
 }
-
-export async function addToReading(paperId: number): Promise<ReadingRecord> {
-  if (!(await visiblePaper(paperId))) throw new Error('论文不可访问')
-  const records = readings()
-  const existing = records.find((item) => item.paperId === paperId)
-  if (existing) return { ...existing, addedAt: existing.addedAt ?? existing.lastReadAt }
-  const record: ReadingRecord = { paperId, status: 'unread', addedAt: now(), lastReadAt: now() }
-  records.unshift(record)
-  savePersonalJSON('ph_reading', records)
-  return { ...record }
-}
-
-export async function updateReadingStatus(
-  paperId: number,
-  status: ReadingStatus,
-): Promise<ReadingRecord> {
-  if (!['unread', 'reading', 'read', 'paused'].includes(status)) throw new Error('无效阅读状态')
-  if (!(await visiblePaper(paperId))) throw new Error('论文不可访问')
-  const records = readings()
-  let record = records.find((item) => item.paperId === paperId)
-  if (!record) {
-    record = { paperId, status, addedAt: now(), lastReadAt: now() }
-    records.unshift(record)
-  }
-  record.addedAt ??= record.lastReadAt
-  record.status = status
-  record.lastReadAt = now()
-  savePersonalJSON('ph_reading', records)
-  return { ...record }
-}
-
-export async function getNotes(): Promise<Note[]> {
+export async function getFavoriteRecords(): Promise<FavoriteRecord[]> {
+  if (!useMock) return requests.getFavorites(apiClient)
+  const records = await getFavorites()
+  const { getPaperForDetail } = await import('./myLibraryService')
   return Promise.all(
-    notes().map(async (note) => {
-      const paper = await visiblePaper(note.paperId)
-      return { ...note, paperTitle: note.paperTitle ?? paper?.title, paperAvailable: !!paper }
+    records.map(async (row) => {
+      const paper = await getPaperForDetail(row.paperId)
+      return { ...row, paper: paper ? { ...paper, uploaderName: paper.uploaderName ?? '' } : null }
     }),
   )
 }
-
-function validateNote(title: string, content: string): void {
-  if (!title.trim() || [...title.trim()].length > 300) throw new Error('笔记标题须为 1–300 字符')
-  if (!content.trim() || new TextEncoder().encode(content).length > 60000)
-    throw new Error('笔记正文为空或过长')
-}
-
-export async function addNote(input: {
-  title: string
-  paperId: number
-  content: string
-}): Promise<Note> {
-  validateNote(input.title, input.content)
-  const paper = await visiblePaper(input.paperId)
-  if (!paper) throw new Error('关联论文不可访问')
-  const records = notes()
-  const note: Note = {
-    ...input,
-    id: Math.max(5000, ...records.map((item) => item.id)) + 1,
-    title: input.title.trim(),
-    content: input.content.trim(),
-    paperTitle: paper.title,
-    paperAvailable: true,
-    createdAt: now(),
-    updatedAt: now(),
+export async function toggleFavorite(paperId: number, target?: boolean) {
+  const generation = sessionGeneration()
+  const result = useMock
+    ? await (await import('@/mocks/services/userDataService')).toggleFavorite(paperId, target)
+    : await requests.toggleFavorite(apiClient, paperId, target)
+  if (generation === sessionGeneration()) {
+    if (result.favorited) favoriteIds.add(paperId)
+    else favoriteIds.delete(paperId)
   }
-  records.unshift(note)
-  savePersonalJSON('ph_notes', records)
-  return { ...note }
+  return result
 }
-
-export async function updateNote(
+export function getReadingRecords() {
+  return useMock
+    ? import('@/mocks/services/userDataService').then((m) => m.getReadingRecords())
+    : requests.getReadingRecords(apiClient)
+}
+export function addToReading(id: number) {
+  return useMock
+    ? import('@/mocks/services/userDataService').then((m) => m.addToReading(id))
+    : requests.addToReading(apiClient, id)
+}
+export function updateReadingStatus(id: number, status: ReadingStatus) {
+  return useMock
+    ? import('@/mocks/services/userDataService').then((m) => m.updateReadingStatus(id, status))
+    : requests.updateReadingStatus(apiClient, id, status)
+}
+export function getNotes() {
+  return useMock
+    ? import('@/mocks/services/userDataService').then((m) => m.getNotes())
+    : requests.getNotes(apiClient)
+}
+export function addNote(input: NoteInput) {
+  return useMock
+    ? import('@/mocks/services/userDataService').then((m) => m.addNote(input))
+    : requests.addNote(apiClient, input)
+}
+export function updateNote(
   id: number,
   patch: { title?: string; paperId?: number; content?: string },
-): Promise<Note | null> {
-  const records = notes()
-  const note = records.find((item) => item.id === id)
-  if (!note) return null
-  validateNote(patch.title ?? note.title, patch.content ?? note.content)
-  if (patch.paperId !== undefined && patch.paperId !== note.paperId) {
-    const paper = await visiblePaper(patch.paperId)
-    if (!paper) throw new Error('关联论文不可访问')
-    note.paperId = patch.paperId
-    note.paperTitle = paper.title
-  }
-  note.title = (patch.title ?? note.title).trim()
-  note.content = (patch.content ?? note.content).trim()
-  note.updatedAt = now()
-  savePersonalJSON('ph_notes', records)
-  return { ...note }
+) {
+  return useMock
+    ? import('@/mocks/services/userDataService').then((m) => m.updateNote(id, patch))
+    : requests.updateNote(apiClient, id, patch)
 }
-
-export async function deleteNote(id: number): Promise<boolean> {
-  const records = notes()
-  const index = records.findIndex((note) => note.id === id)
-  if (index < 0) return false
-  records.splice(index, 1)
-  savePersonalJSON('ph_notes', records)
-  return true
+export function deleteNote(id: number) {
+  return useMock
+    ? import('@/mocks/services/userDataService').then((m) => m.deleteNote(id))
+    : requests.deleteNote(apiClient, id)
 }

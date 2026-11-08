@@ -37,7 +37,7 @@ onMounted(fetchLogs)
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">操作日志</h2>
-        <p class="ph-page-desc">平台管理员操作的历史留痕（演示数据 + 本会话动态记录）</p>
+        <p class="ph-page-desc">平台管理员操作的历史留痕</p>
       </div>
     </div>
 

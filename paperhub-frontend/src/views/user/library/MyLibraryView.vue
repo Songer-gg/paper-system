@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { downloadPaper as savePaperFile } from '@/services/paperFiles'
 import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -100,11 +101,11 @@ async function handleUnshare(paper: Paper) {
 async function handleResubmit(paper: Paper) {
   try {
     await ElMessageBox.confirm(
-      `重新提交后《${paper.title}》将重新进入管理员审核队列。确定继续吗？`,
+      `重新提交后《${paper.title}》将重新进入管理员审核队列。请确认拥有上传和共享此论文的版权授权。`,
       '重新提交审核',
-      { confirmButtonText: '提交', cancelButtonText: '取消' },
+      { confirmButtonText: '确认授权并提交', cancelButtonText: '取消' },
     )
-    await myLibrary.changeReviewStatus(paper.id, 'resubmit')
+    await myLibrary.changeReviewStatus(paper.id, 'resubmit', true)
     ElMessage.success('已重新提交审核')
     fetchAll()
   } catch (error) {
@@ -129,8 +130,12 @@ async function addToReading(paper: Paper) {
   ElMessage.success('已加入阅读管理（未阅读）')
 }
 
-function download(paper: Paper) {
-  ElMessage.success(`已开始下载《${paper.title}》（模拟）`)
+async function download(paper: Paper) {
+  try {
+    await savePaperFile(paper)
+  } catch (error) {
+    reportActionError(error)
+  }
 }
 
 function goDetail(id: number) {
@@ -176,7 +181,6 @@ const editRules: FormRules = {
   title: [{ required: true, message: '请输入论文标题', trigger: 'blur' }],
   authors: [{ required: true, message: '请输入作者', trigger: 'blur' }],
   year: [{ required: true, message: '请选择发表年份', trigger: 'change' }],
-  categoryId: [{ required: true, message: '请选择论文分类', trigger: 'change' }],
 }
 
 function openEdit(paper: Paper) {
@@ -201,7 +205,7 @@ async function saveEdit() {
     journal: editForm.journal,
     year: editForm.year,
     abstract: editForm.abstract,
-    categoryId: editForm.categoryId ?? undefined,
+    categoryId: editForm.categoryId,
     tagIds: editForm.tagIds,
     keywords: editForm.keywords.split(/[,，、\s]+/).filter(Boolean),
   })
@@ -216,9 +220,7 @@ async function saveEdit() {
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">我的论文库</h2>
-        <p class="ph-page-desc">
-          管理你的私有论文、共享论文与收藏，所有操作状态在演示期间刷新后保留
-        </p>
+        <p class="ph-page-desc">管理你的私有论文、共享论文与收藏，数据与服务器同步保存</p>
       </div>
       <div class="header-actions">
         <el-input v-model="keyword" placeholder="按标题搜索" clearable style="width: 220px">

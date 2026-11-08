@@ -101,7 +101,7 @@ async function main() {
   await reading.updateNote(fake, 1, { paperId: 2, content: "updated" });
   assert.equal(calls.pop().args[1].paperId, 2);
 
-  const { createFetchClient } = api("fetch-client");
+  const { createFetchClient, getDownloadFilename } = api("fetch-client");
   let unauthorized = 0;
   let captured;
   const client = createFetchClient({
@@ -144,6 +144,30 @@ async function main() {
     "application/pdf",
   );
 
+  const namedPdf = createFetchClient({
+    getToken: () => 'current',
+    fetch: async () => new Response('%PDF-1.7', { headers: { 'content-type': 'application/pdf', 'content-disposition': "attachment; filename=\"paper.pdf\"; filename*=UTF-8''%E8%AE%BA%E6%96%87.pdf" } }),
+  });
+  assert.equal(getDownloadFilename(await namedPdf.download('/file', 'GET')), '论文.pdf');
+  let activeToken = 'old-session';
+  let staleLogout = 0;
+  const stale = createFetchClient({
+    getToken: () => activeToken,
+    isSessionCurrent: token => token === activeToken,
+    onUnauthorized: () => staleLogout++,
+    fetch: async () => { activeToken = 'new-session'; return new Response(JSON.stringify({ code: 1001, message: 'expired', data: null }), { status: 401, headers: { 'content-type': 'application/json' } }); },
+  });
+  await assert.rejects(stale.get('/old-request'), error => error.code === 1001);
+  assert.equal(staleLogout, 0);
+  assert.equal(activeToken, 'new-session');
+  activeToken = 'old-session';
+  const delayedBody = createFetchClient({
+    getToken: () => activeToken,
+    isSessionCurrent: token => token === activeToken,
+    fetch: async () => ({ ok: true, headers: new Headers({ 'content-type': 'application/json' }), json: async () => { activeToken = 'new-session'; return { code: 0, data: 'old private data' }; } }),
+  });
+  await assert.rejects(delayedBody.get('/private'), error => error.code === 1001);
+
   global.localStorage = storage();
   global.sessionStorage = storage();
   localStorage.setItem(
@@ -152,9 +176,9 @@ async function main() {
   );
   const front = (file) =>
     load(path.join(root, "paperhub-frontend/src", file + ".ts"));
-  const mine = front("services/myLibraryService");
-  const personal = front("services/userDataService");
-  const manager = front("services/adminService");
+  const mine = front("mocks/services/myLibraryService");
+  const personal = front("mocks/services/userDataService");
+  const manager = front("mocks/services/adminService");
   const own = (await mine.getMyPapers()).sharedPapers.find(
     (paper) => paper.reviewStatus === "approved",
   );
@@ -173,7 +197,7 @@ async function main() {
     "pending",
   );
   const visible = (
-    await front("services/paperService").searchSharedPapers({
+    await front("mocks/services/paperService").searchSharedPapers({
       page: 1,
       pageSize: 10,
     })

@@ -5,9 +5,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import * as admin from '@/services/adminService'
 import type { Paper, ReviewStatus } from '@/types/paper'
 import { reviewStatusLabels } from '@/types/paper'
-import { mockCategories } from '@/mocks/categories'
+import { getCategories } from '@/services/knowledgeService'
+import type { Category } from '@/types/paper'
+const categories = ref<Category[]>([])
 import { getCategory } from '@/services/knowledgeService'
-import { getUserName } from '@/mocks/users'
 
 /** 分类树（el-tree-select 数据） */
 interface CategoryNode {
@@ -17,7 +18,7 @@ interface CategoryNode {
 }
 const categoryTree = computed<CategoryNode[]>(() => {
   const build = (parentId: number | null): CategoryNode[] =>
-    mockCategories
+    categories.value
       .filter((c) => c.parentId === parentId)
       .map((c) => {
         const children = build(c.id)
@@ -54,7 +55,10 @@ async function fetchPapers() {
     loading.value = false
   }
 }
-onMounted(fetchPapers)
+onMounted(async () => {
+  categories.value = await getCategories()
+  await fetchPapers()
+})
 
 function resetFilters() {
   query.title = ''
@@ -214,9 +218,7 @@ async function deletePaper(p: Paper) {
             </template>
           </el-table-column>
           <el-table-column label="上传者" width="100">
-            <template #default="{ row }">{{
-              row.uploaderName ?? getUserName(row.uploaderId)
-            }}</template>
+            <template #default="{ row }">{{ row.uploaderName || '—' }}</template>
           </el-table-column>
           <el-table-column label="下载量" width="80" align="center">
             <template #default="{ row }">
@@ -290,7 +292,7 @@ async function deletePaper(p: Paper) {
               {{ getCategory(current.categoryId)?.name ?? '—' }}
             </el-descriptions-item>
             <el-descriptions-item label="上传者">
-              {{ current.uploaderName ?? getUserName(current.uploaderId) }}
+              {{ current.uploaderName || '—' }}
             </el-descriptions-item>
             <el-descriptions-item label="上传时间">{{ current.uploadedAt }}</el-descriptions-item>
             <el-descriptions-item label="下载量">{{ current.downloads }}</el-descriptions-item>
@@ -304,11 +306,14 @@ async function deletePaper(p: Paper) {
             </el-descriptions-item>
           </el-descriptions>
 
+          <el-button type="primary" @click="$router.push(`/admin/papers/${current.id}/reader`)"
+            >预览 PDF</el-button
+          >
           <el-alert
             type="info"
             :closable="false"
             show-icon
-            title="管理员管理的是共享资源，无权访问用户私有论文。"
+            title="本页显示共享资源；用户私有论文可在用户详情查看，访问将记录审计日志。"
           />
         </div>
       </template>

@@ -5,34 +5,22 @@ import { ElMessage } from 'element-plus'
 import * as admin from '@/services/adminService'
 import type { ReportItem } from '@/types/admin'
 import { reportTypeLabels } from '@/types/admin'
-import type { Paper } from '@/types/paper'
-import { getUserName } from '@/mocks/users'
 
 const router = useRouter()
 
 const loading = ref(true)
 const reports = ref<ReportItem[]>([])
-const paperMap = ref<Map<number, Paper>>(new Map())
 const status = ref<'all' | 'pending' | 'resolved'>('pending')
 
 async function fetchReports() {
   loading.value = true
   try {
-    const [list, papers] = await Promise.all([
-      admin.getReports(status.value),
-      admin.getSharedPapers({ title: '', doi: '', uploader: '', categoryId: null, status: 'all' }),
-    ])
-    paperMap.value = new Map(papers.map((p) => [p.id, p]))
-    reports.value = list
+    reports.value = await admin.getReports(status.value)
   } finally {
     loading.value = false
   }
 }
 onMounted(fetchReports)
-
-function titleOf(id: number): string {
-  return paperMap.value.get(id)?.title ?? `论文 #${id}`
-}
 
 function typeLabel(t: ReportItem['type']): string {
   return reportTypeLabels[t]
@@ -111,13 +99,11 @@ function goRecords() {
           </el-table-column>
           <el-table-column label="被举报论文" min-width="220" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="paper-title">{{ titleOf(row.paperId) }}</span>
+              <span class="paper-title">{{ row.paperTitle || `论文 #${row.paperId}` }}</span>
             </template>
           </el-table-column>
           <el-table-column label="举报人" width="90">
-            <template #default="{ row }">{{
-              row.reporterName ?? getUserName(row.reporterId)
-            }}</template>
+            <template #default="{ row }">{{ row.reporterName || '—' }}</template>
           </el-table-column>
           <el-table-column label="举报原因" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">{{ row.reason }}</template>
@@ -161,7 +147,7 @@ function goRecords() {
               {{ reportTypeLabels[current.type] }}
             </el-descriptions-item>
             <el-descriptions-item label="被举报论文">
-              {{ titleOf(current.paperId) }}
+              {{ current.paperTitle || `论文 #${current.paperId}` }}
             </el-descriptions-item>
             <el-descriptions-item label="举报原因">
               <span class="muted">{{ current.reason }}</span>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref, watch, nextTick } from 'vue'
+import { useMock } from '@/config/runtime'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -23,10 +24,7 @@ const form = reactive({
 
 const rules: FormRules = {
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于 6 位', trigger: 'blur' },
-  ],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
 /* 切换身份时清空已输入的密码，避免误提交 */
@@ -35,8 +33,9 @@ watch(mode, () => {
   formRef.value?.clearValidate()
 })
 
-function fillDemoAccount(m: Mode) {
+async function fillDemoAccount(m: Mode) {
   mode.value = m
+  await nextTick()
   form.username = m === 'admin' ? 'admin' : 'researcher'
   form.password = m === 'admin' ? 'admin123' : '123456'
   formRef.value?.clearValidate()
@@ -51,7 +50,9 @@ async function handleLogin() {
     const user = await auth.login(form.username, form.password, mode.value, form.remember)
     ElMessage.success(`登录成功，欢迎回来，${user.name}`)
     const redirect = (route.query.redirect as string) || auth.homePath
-    router.push(redirect)
+    await router.push(
+      redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : auth.homePath,
+    )
   } catch (err) {
     ElMessage.error((err as Error).message)
   } finally {
@@ -60,7 +61,7 @@ async function handleLogin() {
 }
 
 function notifyNotReady() {
-  ElMessage.info('演示阶段：该功能将在接入后端服务后开放')
+  ElMessage.info('该功能尚未开放，请联系平台管理员')
 }
 </script>
 
@@ -111,7 +112,7 @@ function notifyNotReady() {
             </div>
             <div>
               <div class="feature-title">私有空间</div>
-              <div class="feature-desc">私有论文仅自己可见，安全可靠</div>
+              <div class="feature-desc">私有资料按权限保护，管理访问留痕</div>
             </div>
           </li>
         </ul>
@@ -198,7 +199,7 @@ function notifyNotReady() {
         </div>
 
         <!-- 演示账号提示 -->
-        <div class="demo-hint">
+        <div v-if="useMock" class="demo-hint">
           <div class="demo-hint-title">
             <el-icon :size="13"><MagicStick /></el-icon>
             演示账号（点击自动填入）
@@ -214,7 +215,7 @@ function notifyNotReady() {
         </div>
       </div>
 
-      <p class="login-footer">PaperHub 论文管理平台 · 第一阶段前端演示版</p>
+      <p class="login-footer">PaperHub 论文管理平台</p>
     </section>
   </div>
 </template>

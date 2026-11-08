@@ -238,7 +238,7 @@ function fmtTime(t: string): string {
             <div class="note-item-paper ph-ellipsis">
               <el-icon><Document /></el-icon>
               {{
-                paperMap.get(n.paperId)?.title ?? `${n.paperTitle ?? '原论文'}（已删除或不可访问）`
+                `${n.paperTitle ?? paperMap.get(n.paperId)?.title ?? '原论文'}${paperMap.has(n.paperId) ? '' : '（已删除或不可访问）'}`
               }}
             </div>
             <div class="note-item-time">更新于 {{ fmtTime(n.updatedAt) }}</div>
@@ -262,8 +262,7 @@ function fmtTime(t: string): string {
                   @click="goPaper(selectedNote.paperId)"
                 >
                   {{
-                    selectedPaper?.title ??
-                    `${selectedNote.paperTitle ?? '原论文'}（已删除或不可访问）`
+                    `${selectedNote.paperTitle ?? selectedPaper?.title ?? '原论文'}${selectedPaper ? '' : '（已删除或不可访问）'}`
                   }}
                 </el-link>
                 <span class="preview-time">

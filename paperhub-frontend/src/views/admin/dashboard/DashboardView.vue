@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { EChartsOption } from 'echarts'
 import VChart from '@/components/charts/VChart.vue'
 import { getAdminDashboard, type AdminDashboard } from '@/services/dashboardService'
-import { getUserName } from '@/mocks/users'
 import { reviewStatusLabels, type ReviewStatus } from '@/types/paper'
 
 const router = useRouter()
@@ -22,8 +22,14 @@ function statusClass(status?: ReviewStatus): string {
 }
 
 onMounted(async () => {
-  data.value = await getAdminDashboard()
-  loading.value = false
+  try {
+    data.value = await getAdminDashboard()
+    loading.value = false
+  } catch (error) {
+    reportActionError(error)
+  } finally {
+    loading.value = false
+  }
 })
 
 /* 统计条 */
@@ -33,7 +39,7 @@ const statItems = computed(() => {
     {
       label: '注册用户',
       value: t?.users ?? 0,
-      caption: '含 1 名已禁用',
+      caption: '包含已禁用账号',
       icon: 'User',
       path: '/admin/users',
     },
@@ -55,7 +61,7 @@ const statItems = computed(() => {
     {
       label: '今日新增论文',
       value: t?.papersToday ?? 0,
-      caption: '较昨日 +2',
+      caption: '今日上传的共享资源',
       icon: 'UploadFilled',
     },
     { label: '今日新增用户', value: t?.usersToday ?? 0, caption: '注册即计入', icon: 'Plus' },
@@ -284,8 +290,7 @@ const categoryChartOption = computed<EChartsOption>(() => {
                 <div class="task-main">
                   <div class="task-title ph-ellipsis">{{ p.title }}</div>
                   <div class="task-meta">
-                    {{ p.uploaderName ?? getUserName(p.uploaderId) }} ·
-                    {{ p.journal || '未填写期刊' }} · {{ p.year }} 年
+                    {{ p.uploaderName || '—' }} · {{ p.journal || '未填写期刊' }} · {{ p.year }} 年
                   </div>
                 </div>
                 <span class="task-time">{{ p.uploadedAt.slice(5, 16) }}</span>
@@ -306,9 +311,7 @@ const categoryChartOption = computed<EChartsOption>(() => {
                 </span>
                 <div class="task-main">
                   <div class="task-title ph-ellipsis">{{ p.title }}</div>
-                  <div class="task-meta">
-                    {{ p.uploaderName ?? getUserName(p.uploaderId) }} · 上传者
-                  </div>
+                  <div class="task-meta">{{ p.uploaderName || '—' }} · 上传者</div>
                 </div>
                 <span class="task-time">{{ p.uploadedAt.slice(5, 16) }}</span>
               </div>

@@ -12,22 +12,20 @@ const router = useRouter()
 const categories = ref<Category[]>([])
 const tags = ref<Tag[]>([])
 
-/* ---------------- 文件区（模拟上传） ---------------- */
+/* ---------------- 文件区（选择后随表单提交） ---------------- */
 const uploadRef = ref<UploadInstance>()
-interface SimFile {
+interface SelectedPdf {
   raw: File
   name: string
   sizeMB: number
-  pageCount: number
   sha256: string
 }
-const file = ref<SimFile | null>(null)
+const file = ref<SelectedPdf | null>(null)
 const uploadProgress = ref(0)
 const uploading = ref(false)
 
 async function handleFileChange(uploadFile: UploadFile) {
   const selection = ++fileSelection
-  clearInterval(timer)
   file.value = null
   uploadProgress.value = 0
   uploading.value = false
@@ -55,12 +53,11 @@ async function handleFileChange(uploadFile: UploadFile) {
       raw,
       name: raw.name,
       sizeMB: sizeMB || 0.1,
-      pageCount: Math.max(4, Math.round(sizeMB * 14) + 6),
       sha256: Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
         '',
       ),
     }
-    startSimulatedUpload()
+    uploadProgress.value = 100
   } catch (error) {
     if (selection !== fileSelection) return
     uploadRef.value?.clearFiles()
@@ -70,29 +67,12 @@ async function handleFileChange(uploadFile: UploadFile) {
 
 let fileSelection = 0
 
-/* 模拟上传进度条 */
-let timer: ReturnType<typeof setInterval> | undefined
 onUnmounted(() => {
   fileSelection++
-  clearInterval(timer)
 })
-function startSimulatedUpload() {
-  uploading.value = true
-  uploadProgress.value = 0
-  clearInterval(timer)
-  timer = setInterval(() => {
-    uploadProgress.value = Math.min(100, uploadProgress.value + Math.random() * 16 + 7)
-    if (uploadProgress.value >= 100) {
-      uploading.value = false
-      clearInterval(timer)
-      ElMessage.success('文件上传完成')
-    }
-  }, 160)
-}
 
 function removeFile() {
   fileSelection++
-  clearInterval(timer)
   file.value = null
   uploadProgress.value = 0
   uploading.value = false
@@ -196,7 +176,7 @@ function handleSaveDraft() {
   ElMessage.success('草稿已保存，下次进入页面可恢复')
 }
 
-/* ---------------- 模拟查重 ---------------- */
+/* ---------------- 提交前查重 ---------------- */
 const dupDialogVisible = ref(false)
 const dupResult = ref<myLibrary.DuplicateCheckResult | null>(null)
 const submitting = ref(false)
@@ -228,10 +208,6 @@ async function doSubmit() {
       visibility: form.visibility,
       link: form.link,
       copyrightAgreed: copyrightAgreed.value,
-      fileSha256: file.value!.sha256,
-      fileName: file.value!.name,
-      fileSizeMB: file.value!.sizeMB,
-      pageCount: file.value!.pageCount,
     })
     myLibrary.clearDraft()
     if (form.visibility === 'private') {
@@ -264,7 +240,7 @@ async function handleSubmit() {
     return
   }
 
-  /* 共享提交前触发模拟查重（规划书 7.5） */
+  /* 共享提交前触发提交前查重（规划书 7.5） */
   if (form.visibility === 'shared') {
     const result = await myLibrary.checkDuplicate({
       doi: form.doi,
@@ -331,7 +307,7 @@ function handleCancel() {
             <div class="drop-zone">
               <el-icon :size="42" color="#c7d2e8"><UploadFilled /></el-icon>
               <div class="drop-title">拖拽 PDF 文件到此处，或点击选择文件</div>
-              <div class="drop-sub">上传过程为本地模拟，不会真正传输文件</div>
+              <div class="drop-sub">选择文件后，点击提交上传至服务器</div>
             </div>
           </el-upload>
 
@@ -339,15 +315,15 @@ function handleCancel() {
             <div class="file-icon">PDF</div>
             <div class="file-info">
               <div class="file-name ph-ellipsis">{{ file.name }}</div>
-              <div class="file-meta">{{ file.sizeMB }} MB · 约 {{ file.pageCount }} 页</div>
+              <div class="file-meta">{{ file.sizeMB }} MB · 页数以服务器解析为准</div>
             </div>
             <div class="file-progress">
               <template v-if="uploading">
                 <el-progress :percentage="Math.floor(uploadProgress)" :stroke-width="8" />
-                <div class="progress-text">正在上传… {{ Math.floor(uploadProgress) }}%</div>
+                <div class="progress-text">正在校验文件…</div>
               </template>
               <template v-else>
-                <span class="ph-status ph-status--success">上传完成</span>
+                <span class="ph-status ph-status--success">文件已就绪</span>
               </template>
             </div>
             <el-button text :icon="'Delete'" class="danger-btn" @click="removeFile">移除</el-button>
@@ -467,7 +443,7 @@ function handleCancel() {
             <div>
               <div class="section-title">资源权限</div>
               <div class="section-desc">
-                私有资源仅自己可见；共享资源需经管理员审核通过后全员可见
+                私有资源不进入共享库，管理员访问留痕；共享资源需经审核通过后全员可见
               </div>
             </div>
           </div>
@@ -480,7 +456,7 @@ function handleCancel() {
             >
               <el-icon :size="22"><Lock /></el-icon>
               <div class="vis-name">私有论文</div>
-              <div class="vis-desc">仅自己可见，可随时编辑、下载</div>
+              <div class="vis-desc">不进入共享库，可编辑和下载；管理员访问留痕</div>
             </div>
             <div
               class="vis-card"

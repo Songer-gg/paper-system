@@ -2,9 +2,9 @@
 
 Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8。
 
-已完成前8批，既定67/67端点全部实现，含P5/P6/M1用户首页、个人统计与管理首页聚合。详见[第8批交付](BATCH_8_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端仍使用Mock，真实适配及页面回归按第9批实施。接口实现完成不等于生产上线门禁通过。应用启动不自动建库或导入账号。
+已完成第1–9批功能开发及真实前端联调，既定67/67端点全部实现。详见[第9批交付](BATCH_9_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端默认真实模式；220项后端测试、67端点HTTP、4组隔离浏览器流程及27页本机读取检查通过。生产上线门禁仍未通过。应用启动不自动建库或导入账号。
 
-8080提供受保护的后端API，直接浏览器访问可能返回1001；Vue页面从前端开发服务访问，通常为http://localhost:5173。真实前后端统一接入在第9批实施。
+8080提供受保护的后端API，直接浏览器访问可能返回1001；Vue页面访问http://localhost:5173，启动方式见[前端说明](../paperhub-frontend/README.md)，部署配置见[DEPLOYMENT.md](DEPLOYMENT.md)。
 
 ## 环境
 
@@ -102,6 +102,8 @@ python -B paperhub-back/scripts/verify_mysql.py `
 
 脚本创建临时 MySQL 数据目录、随机端口及临时应用账号；核对 @@datadir 后才导入结构和种子。随机数据库密码和 JWT 密钥仅通过子进程环境传入，测试完成关闭临时服务并清理目录。集成测试拒绝在没有隔离标记或数据目录不匹配时更新数据库。
 
+增加`--frontend-e2e`可在该临时数据库上继续运行4组Chrome真实页面流程，需先在前端npm ci并安装本机Chrome。测试同时使用独立Vite端口及对应后端CORS白名单，拒绝缺少隔离标记的浏览器写测试；报告在target/frontend-e2e-report.json。不要在现有库执行写回归。
+
 脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用。累计25项单元测试、195项真实MySQL集成测试，共220项通过；真实HTTP按api-spec逐项记录67/67端点成功覆盖，结果在target/http-endpoint-coverage.json，包含聚合、头像、PDF与各业务流程。举报HTTP测试的待处理记录仅写已核对datadir的临时库，不新增用户提交接口。测试文件也在临时目录，不写本机存储；本批没有执行现有库的测试CRUD。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
 
 依赖扫描：
@@ -115,4 +117,4 @@ python -B scripts/audit_dependencies.py
 
 业务规则见[BUSINESS_RULES.md](../BUSINESS_RULES.md)。管理员私有论文元数据/PDF及他人收藏/阅读/笔记访问审计已落地；敏感审计不可用时不返回数据。
 
-历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)、[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)、[BATCH_4_DELIVERY.md](BATCH_4_DELIVERY.md)、[BATCH_5_DELIVERY.md](BATCH_5_DELIVERY.md)、[BATCH_6_DELIVERY.md](BATCH_6_DELIVERY.md)、[BATCH_7_DELIVERY.md](BATCH_7_DELIVERY.md)；本批交付及本机状态见[BATCH_8_DELIVERY.md](BATCH_8_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。
+历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)、[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)、[BATCH_4_DELIVERY.md](BATCH_4_DELIVERY.md)、[BATCH_5_DELIVERY.md](BATCH_5_DELIVERY.md)、[BATCH_6_DELIVERY.md](BATCH_6_DELIVERY.md)、[BATCH_7_DELIVERY.md](BATCH_7_DELIVERY.md)、[BATCH_8_DELIVERY.md](BATCH_8_DELIVERY.md)；当前交付及本机状态见[BATCH_9_DELIVERY.md](BATCH_9_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。

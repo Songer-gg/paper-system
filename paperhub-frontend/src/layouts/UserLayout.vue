@@ -4,7 +4,6 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { mockNotifications } from '@/mocks/user/notifications'
 
 const route = useRoute()
 const router = useRouter()
@@ -52,8 +51,6 @@ const menuGroups: MenuGroup[] = [
     items: [{ label: '个人中心', icon: 'User', path: '/user/profile' }],
   },
 ]
-
-const unreadCount = computed(() => mockNotifications.filter((n) => !n.read).length)
 
 const searchKeyword = ref('')
 function handleSearch() {
@@ -124,7 +121,7 @@ async function handleCommand(command: string | number | object) {
         </template>
       </nav>
 
-      <div class="aside-footer">PaperHub v0.1 · 演示阶段</div>
+      <div class="aside-footer">PaperHub</div>
     </aside>
 
     <!-- 右侧主体 -->
@@ -144,26 +141,9 @@ async function handleCommand(command: string | number | object) {
         </div>
 
         <div class="header-right">
-          <el-popover placement="bottom-end" width="360" trigger="click">
-            <template #reference>
-              <el-badge :value="unreadCount" :offset="[-2, 4]" class="notify-badge">
-                <el-button :icon="'Bell'" text circle size="large" class="notify-btn" />
-              </el-badge>
-            </template>
-            <div class="notify-panel">
-              <div class="notify-title">消息通知</div>
-              <div
-                v-for="n in mockNotifications"
-                :key="n.id"
-                class="notify-item"
-                :class="{ unread: !n.read }"
-              >
-                <div class="notify-item-title">{{ n.title }}</div>
-                <div class="notify-item-content">{{ n.content }}</div>
-                <div class="notify-item-time">{{ n.time }}</div>
-              </div>
-            </div>
-          </el-popover>
+          <el-tooltip content="通知功能尚未开放"
+            ><el-button :icon="'Bell'" text circle disabled
+          /></el-tooltip>
 
           <el-divider direction="vertical" />
 

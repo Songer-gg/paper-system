@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { reportActionError } from '@/utils/errors'
+import { downloadPaper as savePaperFile } from '@/services/paperFiles'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -7,7 +9,6 @@ import { readingStatusLabels, reviewStatusLabels } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
 import * as userData from '@/services/userDataService'
 import { getTag } from '@/services/knowledgeService'
-import { getUserName as getUploaderName } from '@/mocks/users'
 import TagChip from '@/components/common/TagChip.vue'
 
 const route = useRoute()
@@ -52,7 +53,7 @@ const metaItems = computed(() => {
     { label: '发表年份', value: `${p.year} 年` },
     { label: '期刊 / 会议', value: p.journal || '—' },
     { label: 'DOI', value: p.doi || '—' },
-    { label: '上传者', value: p.uploaderName ?? getUploaderName(p.uploaderId) },
+    { label: '上传者', value: p.uploaderName || '—' },
     { label: '上传时间', value: p.uploadedAt },
     { label: '文件大小', value: `${p.fileSizeMB} MB · ${p.pageCount} 页` },
     { label: '下载次数', value: `${p.downloads} 次` },
@@ -75,8 +76,12 @@ async function changeReadingStatus(status: ReadingStatus) {
   ElMessage.success(`阅读状态已更新为「${readingStatusLabels[status]}」`)
 }
 
-function download() {
-  ElMessage.success(`已开始下载《${paper.value?.title}》（模拟）`)
+async function download() {
+  try {
+    if (paper.value) await savePaperFile(paper.value)
+  } catch (error) {
+    reportActionError(error)
+  }
 }
 
 function goReader() {
@@ -108,7 +113,7 @@ async function saveNote() {
   await myLibrary.addNote({
     title: noteForm.title.trim(),
     paperId,
-    content: noteForm.content.trim(),
+    content: noteForm.content,
   })
   noteDialogVisible.value = false
   ElMessage.success('笔记已保存，可在「阅读笔记」中查看')

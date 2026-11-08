@@ -26,23 +26,8 @@ onMounted(fetchProfile)
 
 const initial = computed(() => profile.value?.name?.charAt(0) ?? '研')
 
-/* 同步昵称到顶栏会话（保持演示一致性） */
 function syncSessionName(name: string) {
-  if (auth.user) {
-    auth.user.name = name
-    for (const store of [localStorage, sessionStorage]) {
-      const raw = store.getItem('paperhub_auth')
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw)
-          parsed.name = name
-          store.setItem('paperhub_auth', JSON.stringify(parsed))
-        } catch {
-          /* 忽略损坏数据 */
-        }
-      }
-    }
-  }
+  auth.updateUser({ name })
 }
 
 /* ---------------- 修改资料 ---------------- */
@@ -118,7 +103,13 @@ const pwdRules: FormRules = {
   oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 8, message: '密码长度不能少于 8 位', trigger: 'blur' },
+    {
+      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+        const size = new TextEncoder().encode(value).length
+        callback(size < 8 || size > 72 ? new Error('新密码须为8–72 UTF-8字节') : undefined)
+      },
+      trigger: 'blur',
+    },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
@@ -150,6 +141,8 @@ async function savePassword() {
   if (res.ok) {
     pwdDialogVisible.value = false
     ElMessage.success(res.message)
+    auth.logout()
+    await router.replace('/login')
   } else {
     ElMessage.error(res.message)
   }
@@ -261,7 +254,7 @@ async function handleLogout() {
               <el-icon :size="20" color="#d97706"><Lock /></el-icon>
               <div>
                 <div class="action-title">账号安全</div>
-                <div class="action-desc">定期修改密码可以保护账号安全（演示原密码：123456）</div>
+                <div class="action-desc">定期修改密码可以保护账号安全</div>
               </div>
             </div>
             <el-button type="primary" plain :icon="'Key'" @click="openPwdDialog">
@@ -329,7 +322,7 @@ async function handleLogout() {
             v-model="pwdForm.newPassword"
             type="password"
             show-password
-            placeholder="不少于 6 位"
+            placeholder="8–72 UTF-8字节"
           />
         </el-form-item>
         <el-form-item label="确认新密码" prop="confirmPassword">

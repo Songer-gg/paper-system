@@ -1,31 +1,34 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { getSettings } from '@/services/adminService'
+import type { PlatformSettings } from '../../../../../paperhub-api/ts/types'
+import { reportActionError } from '@/utils/errors'
 import { ElMessage } from 'element-plus'
 
 /**
- * 第一阶段系统设置：只读展示平台基础信息，暂不实现真实配置保存。
+ * 系统设置：从服务端读取平台基础信息。
  */
-const settings = ref({
-  platformName: 'PaperHub 论文管理平台',
-  slogan: '面向科研人员的学术论文管理与共享平台',
-  logoText: 'PH',
-  version: 'V1.0（前端演示阶段）',
-  maxUploadMB: 100,
-  allowedTypes: '.pdf',
-  contactEmail: 'support@paperhub.example.cn',
+const settings = ref<PlatformSettings | null>(null)
+
+onMounted(async () => {
+  try {
+    settings.value = await getSettings()
+  } catch (error) {
+    reportActionError(error)
+  }
 })
 
 function onSave() {
-  ElMessage.info('演示阶段暂不实现系统配置保存')
+  ElMessage.info('当前设置仅供查看')
 }
 </script>
 
 <template>
-  <div class="ph-page">
+  <div v-if="settings" class="ph-page">
     <div class="ph-page-header">
       <div>
         <h2 class="ph-page-title">系统设置</h2>
-        <p class="ph-page-desc">平台基础信息展示（第一阶段只读，暂不实现配置保存）</p>
+        <p class="ph-page-desc">平台基础信息与上传限制</p>
       </div>
     </div>
 
@@ -60,20 +63,16 @@ function onSave() {
             >
           </el-descriptions-item>
         </el-descriptions>
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          title="当前为第一阶段前端演示，系统设置仅作展示，后续接入后端后开放配置修改。"
-        />
+        <el-alert type="info" :closable="false" show-icon title="系统设置仅供查看。" />
       </div>
     </div>
 
     <div class="ph-card section-card save-card">
       <el-button type="primary" @click="onSave">保存设置</el-button>
-      <span class="save-hint">演示阶段点击保存仅作提示，不产生任何变更</span>
+      <span class="save-hint">当前设置仅供查看</span>
     </div>
   </div>
+  <el-empty v-else description="暂未获取到平台设置，请稍后重试" />
 </template>
 
 <style scoped>

@@ -1,21 +1,20 @@
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { LoginUser, Role } from '@/types/auth'
-import { mockVerifyLogin } from '@/mocks/auth'
-
-const STORAGE_KEY = 'paperhub_auth'
-
-function readStoredUser(): LoginUser | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as LoginUser) : null
-  } catch {
-    return null
-  }
-}
+import { useMock } from '@/config/runtime'
+import { apiClient } from '@/services/api'
+import {
+  clearSession,
+  currentSession,
+  saveSession,
+  updateSessionUser,
+  sessionGeneration,
+} from '@/utils/session'
+import { ApiError } from '@/services/api'
+import { login as requestLogin } from '../../../paperhub-api/ts/modules/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<LoginUser | null>(readStoredUser())
+  const user = computed<LoginUser | null>(() => currentSession.value?.user ?? null)
   const isLoggedIn = computed(() => user.value !== null)
 
   const homePath = computed(() =>
@@ -28,21 +27,24 @@ export const useAuthStore = defineStore('auth', () => {
     role: Role,
     remember: boolean,
   ): Promise<LoginUser> {
-    const loggedIn = await mockVerifyLogin(username, password, role)
-    user.value = loggedIn
-    // “记住登录状态”：localStorage 持久化；否则 sessionStorage 会话级保存
-    localStorage.removeItem(STORAGE_KEY)
-    sessionStorage.removeItem(STORAGE_KEY)
-    const storage = remember ? localStorage : sessionStorage
-    storage.setItem(STORAGE_KEY, JSON.stringify(loggedIn))
-    return loggedIn
+    clearSession()
+    const generation = sessionGeneration()
+    if (useMock) {
+      const { mockVerifyLogin } = await import('@/mocks/auth')
+      const loggedIn = await mockVerifyLogin(username, password, role)
+      if (generation !== sessionGeneration()) throw new ApiError(1001, '登录操作已失效，请重试')
+      saveSession('mock-' + crypto.randomUUID(), loggedIn, remember)
+      return loggedIn
+    }
+    const result = await requestLogin(apiClient, { username, password, role })
+    if (generation !== sessionGeneration()) throw new ApiError(1001, '登录操作已失效，请重试')
+    saveSession(result.token, result.user, remember)
+    return result.user
   }
 
   function logout() {
-    user.value = null
-    localStorage.removeItem(STORAGE_KEY)
-    sessionStorage.removeItem(STORAGE_KEY)
+    clearSession()
   }
 
-  return { user, isLoggedIn, homePath, login, logout }
+  return { user, isLoggedIn, homePath, login, logout, updateUser: updateSessionUser }
 })

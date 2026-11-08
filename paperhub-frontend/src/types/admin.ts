@@ -45,6 +45,7 @@ export const reportTypeLabels: Record<ReportType, string> = {
 
 /** 举报 */
 export interface ReportItem {
+  paperTitle?: string
   id: number
   paperId: number
   reporterId: number

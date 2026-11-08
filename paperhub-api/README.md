@@ -22,6 +22,8 @@ Base URL `/api/v1`；JWT Bearer；JSON `{code,message,data}`；分页 `{list,tot
 
 `ts/modules` 是传输函数，每个函数接收 ApiClient；它们不是可以直接替换所有 Mock import 的零改动适配器。前端保持 Service 入口，由适配器绑定 client、处理登录响应、缓存选择器、404 空态与文件流。
 
+第9批已完成真实接入，前端默认连接Java后端。`ts/fetch-client.ts`支持按请求token处理401和拒绝过期身份的迟到响应，下载Blob保留Content-Disposition文件名；具体会话和缓存由前端适配器负责。运行及验证见[前端说明](../paperhub-frontend/README.md)与[第9批交付](../paperhub-back/BATCH_9_DELIVERY.md)。
+
 v1.1 已对齐前端的查重结果、重复对证据及状态、重复处理记录、管理员趋势、月度标签、密码结果、重置密码字符串和日期筛选。File、Promise、HTTP 方法及权限边界使用真实协议，具体接入步骤见开发计划。
 
 通知、注册、忘记密码、用户举报提交不自动新增。管理员个人数据只读端点来自用户明确授权，敏感访问必须服务端审计。

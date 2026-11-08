@@ -4,6 +4,8 @@
 
 这是一个论文管理系统。
 
+第1–9批功能开发及真实前后端联调已完成。页面访问 http://localhost:5173，8080提供后端API。运行步骤见[前端说明](paperhub-frontend/README.md)和[部署说明](paperhub-back/DEPLOYMENT.md)，当前验证及已知限制见[第9批交付](paperhub-back/BATCH_9_DELIVERY.md)。生产依赖安全门禁尚未通过。
+
 - 可帮助用户管理自己的论文。
 - 可辅助用户查找论文和学习自己上传的论文。
 - 可找寻写内部公开的论文，实现论文的共享学习。

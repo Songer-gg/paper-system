@@ -5,7 +5,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import * as admin from '@/services/adminService'
 import type { Paper } from '@/types/paper'
 import { getCategory } from '@/services/knowledgeService'
-import { getUserName } from '@/mocks/users'
 
 const loading = ref(true)
 const papers = ref<Paper[]>([])
@@ -91,9 +90,7 @@ async function deletePaper(p: Paper) {
             </template>
           </el-table-column>
           <el-table-column label="上传者" width="100">
-            <template #default="{ row }">{{
-              row.uploaderName ?? getUserName(row.uploaderId)
-            }}</template>
+            <template #default="{ row }">{{ row.uploaderName || '—' }}</template>
           </el-table-column>
           <el-table-column label="上传时间" width="110">
             <template #default="{ row }">{{ row.uploadedAt.slice(0, 10) }}</template>
@@ -105,7 +102,13 @@ async function deletePaper(p: Paper) {
           </el-table-column>
           <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
-              <el-button text type="success" size="small" @click="restorePaper(row)">
+              <el-button
+                text
+                type="success"
+                size="small"
+                :disabled="row.offlineReason === 'withdrawn'"
+                @click="restorePaper(row)"
+              >
                 恢复上架
               </el-button>
               <el-button text type="danger" size="small" @click="deletePaper(row)">

@@ -1,9 +1,20 @@
 import { ApiError, type ApiClient, type ApiResponse } from "./http";
 
+const fileNames = new WeakMap<Blob, string>();
+export function getDownloadFilename(blob: Blob): string | undefined { return fileNames.get(blob); }
+function responseFilename(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const extended = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(value);
+  let name = /filename\s*=\s*"([^"]+)"/i.exec(value)?.[1];
+  if (extended) { try { name = decodeURIComponent(extended[1]!); } catch { /* Use the quoted fallback. */ } }
+  return name?.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().slice(0, 180) || undefined;
+}
+
 export interface FetchClientOptions {
   baseUrl?: string;
   getToken: () => string | null;
-  onUnauthorized?: () => void;
+  onUnauthorized?: (requestToken: string | null) => void;
+  isSessionCurrent?: (requestToken: string | null) => boolean;
   fetch?: typeof globalThis.fetch;
 }
 
@@ -40,24 +51,31 @@ export function createFetchClient(options: FetchClientOptions): ApiClient {
       headers,
       body: payload,
     });
+    if (options.isSessionCurrent && !options.isSessionCurrent(token))
+      throw new ApiError(1001, "登录状态已改变，请重新加载");
     const isJson =
       response.headers.get("content-type")?.includes("json") ?? false;
     if (binary && response.ok && !isJson) {
       if (!response.headers.get("content-type")?.includes("application/pdf"))
         throw new ApiError(1500, "服务器未返回 PDF 文件");
-      return (await response.blob()) as T;
+      const blob = await response.blob();
+      if (options.isSessionCurrent && !options.isSessionCurrent(token)) throw new ApiError(1001, "登录状态已改变，请重新加载");
+      const name = responseFilename(response.headers.get("content-disposition"));
+      if (name) fileNames.set(blob, name);
+      return blob as T;
     }
     if (!isJson) {
-      if (response.status === 401) options.onUnauthorized?.();
+      if (response.status === 401) options.onUnauthorized?.(token);
       throw new ApiError(
         response.status === 401 ? 1001 : 1500,
         `请求失败（HTTP ${response.status}）`,
       );
     }
     const result: ApiResponse<T> = await response.json();
+    if (options.isSessionCurrent && !options.isSessionCurrent(token)) throw new ApiError(1001, "登录状态已改变，请重新加载");
     if (!response.ok || result.code !== 0) {
       if (response.status === 401 || result.code === 1001)
-        options.onUnauthorized?.();
+        options.onUnauthorized?.(token);
       throw new ApiError(result.code || 1500, result.message || "请求失败");
     }
     if (binary) throw new ApiError(1500, "预期 PDF 文件，但服务器返回了 JSON");
