@@ -112,9 +112,9 @@ K1/K6/K7/K11使用同一论文可见范围：本人未删除论文及已通过�
 | R8   | PATCH  | /me/notes/{id}                | `{title?,paperId?,content?}` | Note；支持前端更换关联论文，保存快照                |
 | R9   | DELETE | /me/notes/{id}                | id                           | true；仅本人                                        |
 
-ReadingRecord={paperId,status,addedAt,lastReadAt}；状态固定 unread/reading/read/paused。FavoriteRecord={paperId,paper:Paper|null,favoritedAt}；R1中paper非空，管理员历史查询可空。R2设置false允许清理失去访问权的已有收藏，不能借此新增不可见资源；toggle不自动重试。
+ReadingRecord={paperId,status,addedAt,lastReadAt}；状态固定 unread/reading/read/paused。R4重复加入保留全部原状态和时间；R5创建或更新lastReadAt，保留已有addedAt。FavoriteRecord={paperId,paper:Paper|null,favoritedAt}；R1中paper非空，管理员历史查询可空。R2仅可新增已通过、未删除共享论文的收藏；设置true幂等且保留原收藏时间。设置false允许清理失去访问权的已有收藏，不能借此新增不可见资源；toggle不自动重试。
 
-笔记在原论文失效后仍可编辑正文及删除，不泄露失效论文内容；新的paperId必须可见。关键词搜索笔记标题和关联标题快照。正文纯文本/Markdown，前端必须转义后渲染。
+Note={id,paperId,paperTitle,title,content,paperAvailable,createdAt,updatedAt}。笔记在原论文失效后仍可编辑正文及删除，不泄露失效论文内容；新的paperId必须可见，显式传入未改变的原paperId仍可保存失效来源的笔记。paperTitle为创建/更换关联时的快照，不随论文改名更新。关键词搜索笔记标题和关联标题快照，%、_按字面匹配。标题去首尾空白，正文纯文本/Markdown保留原始缩进及换行，前端必须转义后渲染。PATCH只更新提供的字段，空对象、显式null及归属/快照/时间等未知字段拒绝。
 
 ## 7. 个人资料与统计
 

@@ -6,6 +6,11 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 public final class PaperVisibility {
     private PaperVisibility() {}
+    public static boolean allowed(PaperEntity paper,SessionPrincipal actor) {
+        return paper!=null && paper.getDeletedAt()==null && ("admin".equals(actor.getRole()) ||
+                paper.getUploaderId().equals(actor.getId()) ||
+                ("shared".equals(paper.getVisibility()) && "approved".equals(paper.getReviewStatus())));
+    }
     public static QueryWrapper<PaperEntity> query(SessionPrincipal actor) {
         QueryWrapper<PaperEntity> query=new QueryWrapper<PaperEntity>().isNull("deleted_at");
         if(!"admin".equals(actor.getRole()))

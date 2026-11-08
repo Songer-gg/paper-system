@@ -239,6 +239,39 @@ def smoke(backend, env):
             found = api('GET', '/shared-papers?' + urllib.parse.urlencode({'q': title, 'page': 1, 'pageSize': 10}))
             assert found['total'] == 1 and found['list'][0]['id'] == pid
             assert set(api('GET', '/shared-papers/filter-options')) == {'categories', 'tags', 'years', 'journals'}
+            # R1-R9 through the packaged Java 8 server, including a deleted source snapshot.
+            favorite_path = '/papers/' + str(pid) + '/favorite'
+            assert api('POST', favorite_path, {'favorited': True})['favorited'] is True
+            first = next(row for row in api('GET', '/me/favorites') if row['paperId'] == pid)
+            api('POST', favorite_path, {'favorited': True})
+            again = next(row for row in api('GET', '/me/favorites') if row['paperId'] == pid)
+            assert first['favoritedAt'] == again['favoritedAt'] and again['paper']['id'] == pid
+            reading_path = '/papers/' + str(pid) + '/reading'
+            initial = api('POST', reading_path)
+            assert initial['status'] == 'unread'
+            changed = api('PATCH', '/me/reading-records/' + str(pid), {'status': 'read'})
+            assert changed['addedAt'] == initial['addedAt']
+            assert api('POST', reading_path) == changed
+            assert any(row['paperId'] == pid and row['status'] == 'read'
+                       for row in api('GET', '/me/reading-records'))
+            content = '  # HTTP Markdown\n\n    preserve indentation\n'
+            note = api('POST', '/me/notes', {'paperId': pid, 'title': 'HTTP note ' + marker, 'content': content})
+            assert note['paperTitle'] == title and note['content'] == content and note['paperAvailable'] is True
+            note_path = '/me/notes/' + str(note['id'])
+            private_source = submit(dict(payload, title='HTTP private note source ' + marker,
+                                         categoryId=1, tagIds=[]), pdf)
+            source_id = private_source['id']
+            updated = api('PATCH', note_path, {'paperId': source_id, 'title': 'HTTP relinked ' + marker})
+            assert updated['paperTitle'] == private_source['title'] and updated['content'] == content
+            api('DELETE', '/papers/' + str(source_id))
+            retained = api('GET', '/me/notes?' + urllib.parse.urlencode({'paperId': source_id, 'keyword': marker}))
+            assert len(retained) == 1 and retained[0]['paperAvailable'] is False
+            assert retained[0]['paperTitle'] == private_source['title']
+            assert api('PATCH', note_path, {'paperId': source_id, 'content': content + 'retained'})['paperAvailable'] is False
+            assert api('POST', favorite_path, {'favorited': False})['favorited'] is False
+            assert any(row['paperId'] == pid for row in api('GET', '/me/reading-records'))
+            assert api('DELETE', note_path) is True
+            assert api('GET', '/me/notes?' + urllib.parse.urlencode({'paperId': source_id, 'keyword': marker})) == []
             admin_api('PATCH', '/admin/papers/' + str(pid) + '/offline')
             admin_api('PATCH', '/admin/papers/' + str(pid) + '/restore')
             api('PATCH', '/papers/' + str(pid) + '/review-flow', {'action': 'unshare'})
@@ -263,7 +296,7 @@ def smoke(backend, env):
             assert any(item['pairId'] == pair3['id'] and item['action'] == 'duplicate' for item in admin_api('GET', '/admin/duplicate-records'))
             for item in [linked, distinct, duplicate, original]:
                 admin_api('DELETE', '/admin/papers/' + str(item['id']))
-            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12 and all M7-M20 sharing/review/duplicate commands')
+            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M7-M20 and all R1-R9 personal data commands')
         finally:
             app.terminate()
             try:
