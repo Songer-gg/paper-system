@@ -121,7 +121,7 @@ Note={id,paperId,paperTitle,title,content,paperAvailable,createdAt,updatedAt}。
 | 编号 | Method | Path           | 请求                                        | data                                                   |
 | ---- | ------ | -------------- | ------------------------------------------- | ------------------------------------------------------ |
 | P1   | GET    | /me/profile    | 无                                          | MyProfile，含avatar/uploadedCount，统计由后端计算      |
-| P2   | PATCH  | /me/profile    | `{name?,email?}`                            | MyProfile，邮箱必填且唯一                              |
+| P2   | PATCH  | /me/profile    | `{name?,email?}`                            | MyProfile，部分更新；提供的邮箱须非空且唯一            |
 | P3   | PUT    | /me/avatar     | multipart file                              | MyProfile，avatar返回经校验重编码的dataURL；数据库仅存内部短键 |
 | P4   | PUT    | /me/password   | `{oldPassword,newPassword,confirmPassword}` | `{ok:true,message}`；错误走统一非0 code                |
 | P5   | GET    | /me/dashboard  | 无                                          | UserDashboard，保持前端counts及recent数据结构          |
@@ -130,6 +130,10 @@ Note={id,paperId,paperTitle,title,content,paperAvailable,createdAt,updatedAt}。
 P5/P6所有统计按本人归属；月度趋势按lastReadAt归月，最近12个月补零。上传数=本人未删除私有+共享；共享数含各审核状态。收藏计数与R1可见列表一致，已读数与R3可见记录一致。
 
 头像最大2MiB、2048×2048，只接受实际PNG/JPEG并重编码为PNG。P1/P2/P3的avatar字符串用于现有img展示；dataURL只在已认证响应中生成，不写入VARCHAR(255)，不新增公开文件端点。
+
+P2只更新提供的name/email；空对象、显式null、归属/角色/头像/密码等未知字段拒绝。name去首尾空白后1–50个Unicode字符；email去首尾空白、转小写，最长120字符，并校验邮箱格式及唯一约束。邮箱不可占用其他账号的邮箱式username，避免用户名/邮箱登录歧义。uploadedCount由本人全部未删除论文计算；未设置或文件缺失的avatar为空字符串。
+
+P4校验原密码，新密码8–72 UTF-8字节且与确认值一致，不得与原密码相同；密码不trim。成功同事务递增token_version，当前及其他旧token均失效，返回成功后前端须清理会话并重新登录，不自动重试改密请求。改密不覆盖最近一次管理员passwordResetAt。
 
 ## 8. 管理员
 
@@ -169,6 +173,12 @@ P5/P6所有统计按本人归属；月度趋势按lastReadAt归月，最近12个
 DuplicatePair={id,originalPaperId,newPaperId,doiMatch,titleSimilarity,fileHashMatch,status,submittedAt,handledAt?,handlerNote?}。status=pending/duplicate/distinct/linked；DuplicateRecord.action=duplicate/distinct/linked。已处理对不可覆盖；关联ID通过逻辑删除保留。
 
 M13要求用户版权已确认及请求copyrightConfirmed=true；M14驳回原因不得为空白。M9没有原因输入，使用固定“管理员下架”原因；M10不能恢复withdrawn，且重新检查文件、版权、精确重复和待处理疑似对。重复审核/状态冲突返回1004。
+
+M2关键词匹配姓名或用户名，%、_、!按字面匹配；注册日期为严格yyyy-MM-dd，起止日均包含，from不可晚于to。sharedCount为该用户未删除共享数（含全部审核状态），contributionCount为其中approved数量；不得统计私有或已删除论文。
+
+M5状态实际改变时递增token_version；重复设置相同状态不重复递增，恢复账号不恢复旧token。禁止自禁用及禁用最后一个可用管理员；并发管理操作锁定后再次验证操作者仍为可用管理员。M6不接受客户端指定新密码，生成24字符安全随机密码（144位随机源），BCrypt存储并更新passwordResetAt/token_version，与成功日志同事务；密码只在本次string响应显示，不写日志。M6不可自动重试。
+
+M2/M3用户资料和M4/M26–M28个人数据读取先持久化访问审计，失败不返回数据；个人列表为空也记录用户范围访问。M4返回该用户全部未删除论文；M26/M27保留全部个人记录，管理员能查看未删除的私有/下架来源，已删除来源paper=null。M28保留本人笔记的历史paperTitle/正文，paperAvailable按管理员权限及删除状态计算；每条笔记及私有来源均留审计。各接口均不返回password、tokenVersion、文件键等内部字段。
 
 任一侧有pending疑似对时不能通过；最终扫描新发现证据时先提交证据及失败日志，再返回1006，审核状态和流水不变。M17/M19驳回pending/approved新论文并写流水；withdrawn/moderation/已删除论文仅关闭历史疑似对，保留原状态。M19原文须为已通过、未删除共享。相同DOI/文件不能标记distinct；distinct不自动批准。M20直接由已处理duplicate_pair生成稳定记录，paperTitle为首次比对快照。
 

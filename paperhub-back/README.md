@@ -2,7 +2,7 @@
 
 Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8。
 
-已完成前5批，共48/67端点：认证、文件论文核心、分类标签、共享检索及审核/重复处理，以及R1–R9收藏、阅读状态和笔记。详见[第5批交付](BATCH_5_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端仍使用Mock，真实接入按第9批实施。应用启动不自动建库或导入账号。
+已完成前6批，共59/67端点：认证、文件论文核心、分类标签、共享检索及审核/重复处理、个人阅读，以及P1/P2/P4、M2–M6、M26–M28资料/改密/用户管理与个人数据审计查询。详见[第6批交付](BATCH_6_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端仍使用Mock，真实接入按第9批实施。应用启动不自动建库或导入账号。
 
 8080提供受保护的后端API，直接浏览器访问可能返回1001；Vue页面从前端开发服务访问，通常为http://localhost:5173。真实前后端统一接入在第9批实施。
 
@@ -77,7 +77,7 @@ java -jar target/paperhub-back-0.1.0-SNAPSHOT.jar '--spring.config.additional-lo
 - 演示账号只存在于手动导入的 seed-demo.sql；正式环境不要导入。
 - 失败不区分账号存在、密码错误、角色不符或账号禁用。角色来自数据库，请求 role 只决定登录入口。
 - JWT 使用 HS256、固定 issuer/audience、24h 有效期及唯一 jti，只包含会话标识；每次请求重新查询账号，检查状态、role 和 token_version。
-- 后续禁用、改密、重置事务必须递增 token_version；恢复账号不恢复旧 token。相关修改接口属于第6批，本批使用真实数据库状态变更验证撤销基础。
+- 禁用/恢复的实际状态变化、改密及管理员重置同事务递增token_version；重复设置相同状态不递增。恢复账号不恢复旧token，P4成功后须重新登录。管理员重置返回一次随机密码，不得自动重试或写入日志。
 - `/api/v1/admin/**` 需管理员；其他 `/api/v1/**` 需已认证。`/me` 的主体由 SessionPrincipal 决定，禁止从请求读取 userId 冒充。
 - 默认单实例登录限流：每 IP 每分钟20次，每账号每分钟10次，最多10000个计数项；不信任客户端 X-Forwarded-For。多实例部署前须在受信网关或共享存储实现全局限流。
 - 统一 401/403/404/422/409/400/500 JSON，失败 data=null；不向响应回显密码、SQL、异常堆栈或未知请求字段。
@@ -102,7 +102,7 @@ python -B paperhub-back/scripts/verify_mysql.py `
 
 脚本创建临时 MySQL 数据目录、随机端口及临时应用账号；核对 @@datadir 后才导入结构和种子。随机数据库密码和 JWT 密钥仅通过子进程环境传入，测试完成关闭临时服务并清理目录。集成测试拒绝在没有隔离标记或数据目录不匹配时更新数据库。
 
-脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用，经真实HTTP覆盖R1–R9、共享/审核端点、K1–K11、认证及PDF流程。累计18项单元测试、123项真实MySQL集成测试，共141项通过。测试文件也在临时目录，不写本机存储；本批没有执行现有库的测试CRUD。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
+脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用，经真实HTTP覆盖P1/P2/P4、M2–M6、M26–M28、R1–R9、共享/审核端点、K1–K11、认证及PDF流程。累计20项单元测试、152项真实MySQL集成测试，共172项通过。测试文件也在临时目录，不写本机存储；本批没有执行现有库的测试CRUD。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
 
 依赖扫描：
 
@@ -113,6 +113,6 @@ python -B scripts/audit_dependencies.py
 
 扫描只向 OSV 发送公开 Maven 坐标及版本，结果写 target/dependency-audit.json。扫描失败记为未完成，不能当作“无漏洞”；发现项需评估并形成上线处理结论，不擅自替换既定框架。
 
-业务规则见[BUSINESS_RULES.md](../BUSINESS_RULES.md)。管理员私有论文元数据/PDF审计已落地；他人收藏/阅读/笔记读取在第6批实施。
+业务规则见[BUSINESS_RULES.md](../BUSINESS_RULES.md)。管理员私有论文元数据/PDF及他人收藏/阅读/笔记访问审计已落地；敏感审计不可用时不返回数据。
 
-历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)、[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)、[BATCH_4_DELIVERY.md](BATCH_4_DELIVERY.md)；本批交付及本机状态见[BATCH_5_DELIVERY.md](BATCH_5_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。
+历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)、[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)、[BATCH_4_DELIVERY.md](BATCH_4_DELIVERY.md)、[BATCH_5_DELIVERY.md](BATCH_5_DELIVERY.md)；本批交付及本机状态见[BATCH_6_DELIVERY.md](BATCH_6_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。

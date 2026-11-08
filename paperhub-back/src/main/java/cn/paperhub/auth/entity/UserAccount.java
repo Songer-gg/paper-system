@@ -18,6 +18,10 @@ public class UserAccount {
     private String avatar;
     private Long tokenVersion;
     private LocalDateTime registeredAt;
+    private LocalDateTime passwordResetAt;
+
+    public LocalDateTime getPasswordResetAt() { return passwordResetAt; }
+    public void setPasswordResetAt(LocalDateTime value) { passwordResetAt=value; }
 
     public Long getId() { return id; }
     public String getAvatar() { return avatar; }

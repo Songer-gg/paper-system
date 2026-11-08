@@ -263,7 +263,16 @@ def smoke(backend, env):
             source_id = private_source['id']
             updated = api('PATCH', note_path, {'paperId': source_id, 'title': 'HTTP relinked ' + marker})
             assert updated['paperTitle'] == private_source['title'] and updated['content'] == content
+            assert source_id in [row['id'] for row in admin_api('GET', '/admin/users/1/papers')]
+            assert any(row['paperId'] == pid and row['paper']['id'] == pid
+                       for row in admin_api('GET', '/admin/users/1/favorites'))
+            assert any(row['paperId'] == pid and row['paper']['id'] == pid
+                       for row in admin_api('GET', '/admin/users/1/reading-records'))
+            assert any(row['id'] == note['id'] and row['paperAvailable'] is True
+                       for row in admin_api('GET', '/admin/users/1/notes'))
             api('DELETE', '/papers/' + str(source_id))
+            assert any(row['id'] == note['id'] and row['paperAvailable'] is False
+                       for row in admin_api('GET', '/admin/users/1/notes'))
             retained = api('GET', '/me/notes?' + urllib.parse.urlencode({'paperId': source_id, 'keyword': marker}))
             assert len(retained) == 1 and retained[0]['paperAvailable'] is False
             assert retained[0]['paperTitle'] == private_source['title']
@@ -296,7 +305,33 @@ def smoke(backend, env):
             assert any(item['pairId'] == pair3['id'] and item['action'] == 'duplicate' for item in admin_api('GET', '/admin/duplicate-records'))
             for item in [linked, distinct, duplicate, original]:
                 admin_api('DELETE', '/admin/papers/' + str(item['id']))
-            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M7-M20 and all R1-R9 personal data commands')
+            assert api('GET', '/me/profile')['id'] == 1
+            changed_profile = api('PATCH', '/me/profile', {'name': 'HTTP researcher ' + marker,
+                                                         'email': 'http-' + marker + '@example.com'})
+            assert changed_profile['name'] == 'HTTP researcher ' + marker and 'avatar' in changed_profile
+            assert admin_api('GET', '/admin/users/1')['passwordResetAt'] is None
+            assert [row['id'] for row in admin_api('GET', '/admin/users?' + urllib.parse.urlencode(
+                {'keyword': changed_profile['name'], 'status': 'active'}))] == [1]
+            new_password = 'HTTP-' + secrets.token_hex(12)
+            assert api('PUT', '/me/password', {'oldPassword': '123456', 'newPassword': new_password,
+                                              'confirmPassword': new_password})['ok'] is True
+            expect_error('GET', '/me/profile', None, 401, 1001)
+            fresh = api('POST', '/auth/login', {'username': 'researcher', 'password': new_password, 'role': 'user'})
+            headers['Authorization'] = 'Bearer ' + fresh['token']
+            assert admin_api('PATCH', '/admin/users/1/status', {'status': 'disabled'}) is True
+            expect_error('GET', '/me/profile', None, 401, 1001)
+            assert admin_api('PATCH', '/admin/users/1/status', {'status': 'active'}) is True
+            expect_error('GET', '/me/profile', None, 401, 1001)
+            reset_password = admin_api('POST', '/admin/users/1/password-reset')
+            assert isinstance(reset_password, str) and len(reset_password) == 24
+            assert admin_api('GET', '/admin/users/1')['passwordResetAt'] is not None
+            fresh = api('POST', '/auth/login', {'username': 'researcher', 'password': reset_password, 'role': 'user'})
+            headers['Authorization'] = 'Bearer ' + fresh['token']
+            assert api('GET', '/me/profile')['status'] == 'active'
+            expect_error('PATCH', '/admin/users/101/status', {'status': 'disabled'}, 400, 1006, True)
+            assert any(row['paperId'] == pid and row['paper'] is None
+                       for row in admin_api('GET', '/admin/users/1/reading-records'))
+            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M7-M20, R1-R9 and P1/P2/P4/M2-M6/M26-M28')
         finally:
             app.terminate()
             try:

@@ -28,6 +28,17 @@ public class AvatarService {
     public AvatarService(LocalFileStorage storage, FileLifecycle files, UserAccountMapper users, JdbcTemplate jdbc, AuditService audit) {
         this.storage=storage; this.files=files; this.users=users; this.jdbc=jdbc; this.audit=audit;
     }
+    public String display(String key) {
+        if(key==null || !key.matches("avatars/[a-fA-F0-9-]{36}\\.png")) return "";
+        try(InputStream in=storage.open(key); ByteArrayOutputStream out=new ByteArrayOutputStream()) {
+            byte[] buffer=new byte[8192];int count;
+            while((count=in.read(buffer))!=-1) {
+                if(out.size()+count>LocalFileStorage.AVATAR_LIMIT) return "";
+                out.write(buffer,0,count);
+            }
+            return "data:image/png;base64,"+Base64.getEncoder().encodeToString(normalize(out.toByteArray()));
+        } catch(IOException ex) { return ""; }
+    }
     @Transactional(timeout=60,rollbackFor=Exception.class)
     public MyProfileView update(MultipartFile file, SessionPrincipal actor) throws IOException {
         if(file.isEmpty() || file.getSize()>LocalFileStorage.AVATAR_LIMIT) invalid();
