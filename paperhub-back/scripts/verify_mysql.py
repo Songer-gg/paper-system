@@ -7,6 +7,7 @@ import argparse
 import base64
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shutil
@@ -15,6 +16,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import struct
+import zlib
 import urllib.error
 import urllib.request
 import urllib.parse
@@ -144,6 +147,9 @@ def smoke(backend, env, database):
                 assert error.code == 401 and json.load(error)['code'] == 1001
             base = url.rsplit('/auth/login', 1)[0]
             headers = {'Authorization': 'Bearer ' + result['data']['token']}
+            visited = {('POST', '/auth/login')}
+            def route(path):
+                return re.sub(r'(?<=/)\d+(?=/|$)', '{id}', re.sub(r'\{[^}]+\}', '{id}', path.split('?', 1)[0]))
             def api(method, path, payload=None, token=None):
                 request_headers = dict(headers)
                 if token:
@@ -156,6 +162,7 @@ def smoke(backend, env, database):
                 with urllib.request.urlopen(request, timeout=10) as response:
                     envelope = json.load(response)
                 assert envelope['code'] == 0
+                visited.add((method, route(path)))
                 return envelope['data']
             def submit(payload, document):
                 boundary = 'PaperHub' + secrets.token_hex(16)
@@ -167,7 +174,10 @@ def smoke(backend, env, database):
                 request = urllib.request.Request(base + '/papers', multipart,
                           dict(headers, **{'Content-Type': 'multipart/form-data; boundary=' + boundary}), method='POST')
                 with urllib.request.urlopen(request, timeout=10) as response:
-                    return json.load(response)['data']
+                    envelope = json.load(response)
+                    assert envelope['code'] == 0
+                    visited.add(('POST', '/papers'))
+                    return envelope['data']
             marker = secrets.token_hex(8)
             category = api('POST', '/categories', {'name': 'HTTP root ' + marker, 'parentId': None})
             child = api('POST', '/categories', {'name': 'HTTP child ' + marker, 'parentId': category['id']})
@@ -183,6 +193,23 @@ def smoke(backend, env, database):
                        'tagIds': [tag['id']], 'keywords': [], 'visibility': 'private', 'copyrightAgreed': False}
             paper_id = submit(payload, pdf)['id']
             resource = base + '/papers/' + str(paper_id)
+            assert paper_id in [row['id'] for row in api('GET', '/papers/mine')['privatePapers']]
+            assert api('PATCH', '/papers/' + str(paper_id), {'title': payload['title'] + ' edited'})['title'].endswith(' edited')
+            def chunk(kind, data):
+                return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
+            png = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)) +
+                   chunk(b'IDAT', zlib.compress(b'\x00\x12\x34\x56')) + chunk(b'IEND', b''))
+            avatar_boundary = 'PaperHubAvatar' + marker
+            avatar_body = (('--' + avatar_boundary + '\r\nContent-Disposition: form-data; name="file"; '
+                            'filename="avatar.png"\r\nContent-Type: image/png\r\n\r\n').encode() + png +
+                           ('\r\n--' + avatar_boundary + '--\r\n').encode())
+            avatar_request = urllib.request.Request(base + '/me/avatar', avatar_body,
+                dict(headers, **{'Content-Type': 'multipart/form-data; boundary=' + avatar_boundary}), method='PUT')
+            with urllib.request.urlopen(avatar_request, timeout=10) as response:
+                avatar_result = json.load(response)
+                assert avatar_result['code'] == 0 and avatar_result['data']['avatar'].startswith('data:image/png;base64,')
+            visited.add(('PUT', '/me/avatar'))
+            assert api('GET', '/me/profile')['avatar'] == avatar_result['data']['avatar']
             category_list = api('GET', '/categories')
             assert all(item['ownerId'] in (None, 1) for item in category_list)
             assert next(item for item in category_list if item['id'] == category['id'])['paperCount'] == 1
@@ -195,6 +222,7 @@ def smoke(backend, env, database):
                     assert response.headers['Content-Type'] == 'application/pdf'
                     assert response.headers['Content-Disposition'].startswith(disposition)
                     assert response.read() == pdf
+                    visited.add((method, route('/papers/' + str(paper_id) + suffix)))
             with urllib.request.urlopen(urllib.request.Request(resource, headers=headers), timeout=10) as response:
                 assert json.load(response)['data']['downloads'] == 1
             assert len(api('DELETE', '/categories/' + str(category['id']))) == 2
@@ -257,6 +285,24 @@ def smoke(backend, env, database):
             content = '  # HTTP Markdown\n\n    preserve indentation\n'
             note = api('POST', '/me/notes', {'paperId': pid, 'title': 'HTTP note ' + marker, 'content': content})
             assert note['paperTitle'] == title and note['content'] == content and note['paperAvailable'] is True
+            user_dashboard = api('GET', '/me/dashboard')
+            user_statistics = api('GET', '/me/statistics')
+            assert user_dashboard['counts']['total'] == user_statistics['totalPapers']
+            assert user_dashboard['counts']['favorites'] == len(api('GET', '/me/favorites'))
+            assert user_statistics['noteCount'] == len(api('GET', '/me/notes'))
+            assert user_statistics['readCount'] == sum(row['status'] == 'read' for row in api('GET', '/me/reading-records'))
+            assert len(user_statistics['monthlyReadingTrend']) == 12
+            assert len(user_dashboard['readingDist']) == 4
+            assert all(len(user_dashboard[key]) <= 4 for key in ('recentUploads', 'recentReadings', 'recentFavorites'))
+            assert api('GET', '/me/statistics?userId=101') == user_statistics
+            admin_dashboard = admin_api('GET', '/admin/dashboard')
+            assert admin_dashboard['totals']['papers'] == api('GET', '/shared-papers?page=1&pageSize=1')['total']
+            assert admin_dashboard['totals']['pending'] == len(admin_dashboard['pendingTasks'])
+            assert len(admin_dashboard['uploadTrend']['months']) == len(admin_dashboard['uploadTrend']['papers']) == 12
+            assert admin_dashboard['uploadTrend']['months'] == admin_dashboard['registerTrend']['months']
+            assert len(admin_dashboard['registerTrend']['users']) == 12
+            assert len(admin_dashboard['recentUploads']) <= 6
+            expect_error('GET', '/admin/dashboard', None, 403, 1002)
             note_path = '/me/notes/' + str(note['id'])
             private_source = submit(dict(payload, title='HTTP private note source ' + marker,
                                          categoryId=1, tagIds=[]), pdf)
@@ -351,7 +397,14 @@ def smoke(backend, env, database):
             expect_error('PATCH', '/admin/users/101/status', {'status': 'disabled'}, 400, 1006, True)
             assert any(row['paperId'] == pid and row['paper'] is None
                        for row in admin_api('GET', '/admin/users/1/reading-records'))
-            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M7-M25, R1-R9 and P1/P2/P4/M2-M6/M26-M28')
+            contract = (backend.parent / 'paperhub-api' / 'api-spec.md').read_text(encoding='utf-8')
+            endpoints = [{'id': item[0], 'method': item[1], 'path': item[2].strip(),
+                          'covered': (item[1], route(item[2].strip())) in visited}
+                         for item in re.findall(r'^\|\s*([A-Z]\d+)\s*\|\s*(GET|POST|PUT|PATCH|DELETE)\s*\|\s*([^|]+)\|', contract, re.MULTILINE)]
+            coverage = {'expected': len(endpoints), 'covered': sum(row['covered'] for row in endpoints), 'endpoints': endpoints}
+            (backend / 'target' / 'http-endpoint-coverage.json').write_text(json.dumps(coverage, indent=2), encoding='utf-8')
+            assert coverage['expected'] == 67 and coverage['covered'] == 67, [row['id'] for row in endpoints if not row['covered']]
+            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M1-M28, R1-R9 and P1-P6; all 67 API endpoints')
         finally:
             app.terminate()
             try:

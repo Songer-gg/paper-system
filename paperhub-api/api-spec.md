@@ -129,6 +129,12 @@ Note={id,paperId,paperTitle,title,content,paperAvailable,createdAt,updatedAt}。
 
 P5/P6所有统计按本人归属；月度趋势按lastReadAt归月，最近12个月补零。上传数=本人未删除私有+共享；共享数含各审核状态。收藏计数与R1可见列表一致，已读数与R3可见记录一致。
 
+P5：yearDist按本人论文发表年份升序，categoryDist按根分类合并、数量倒序，保留Top6并把其余汇总为“其他”（已有同名项合并）。未分类/缺失分类归“未分类”。readingDist固定read/reading/unread/paused顺序，标签为已阅读/阅读中/未阅读/暂不阅读，无记录补0。recentUploads/recentReadings/recentFavorites各最多4项，分别按上传/最近阅读/收藏时间和对应记录id倒序；在SQL中先按本人及可见性过滤，最近阅读和收藏的paper非空。
+
+P6：noteCount包含本人全部笔记，来源已删除也保留；yearDistribution按年份升序，categoryDistribution为全部根分类数量倒序，journalDistribution为Top8，空期刊归“未投稿”。分类/期刊数量并列时按名称稳定排序。monthlyReadingTrend覆盖应用Clock在Asia/Shanghai的当前月及前11个月，起始月首包含、下月月首排除，按每条当前可见阅读记录的lastReadAt归月（不限read状态），不是阅读次数或时长；month=yyyy-MM，label如1月。
+
+P5/P6一次响应中的计数、图表和最近记录使用同一REPEATABLE READ只读快照，不能由客户端userId/ownerId切换归属。管理员使用/me仍只统计自己上传及自己的个人记录，但其阅读记录按管理员权限可关联他人未删除私有论文；此类私有来源和自己的私有上传聚合先独立持久化资源审计，失败不返回计数或内容。响应不返回笔记正文、密码或文件存储字段。
+
 头像最大2MiB、2048×2048，只接受实际PNG/JPEG并重编码为PNG。P1/P2/P3的avatar字符串用于现有img展示；dataURL只在已认证响应中生成，不写入VARCHAR(255)，不新增公开文件端点。
 
 P2只更新提供的name/email；空对象、显式null、归属/角色/头像/密码等未知字段拒绝。name去首尾空白后1–50个Unicode字符；email去首尾空白、转小写，最长120字符，并校验邮箱格式及唯一约束。邮箱不可占用其他账号的邮箱式username，避免用户名/邮箱登录歧义。uploadedCount由本人全部未删除论文计算；未设置或文件缺失的avatar为空字符串。
@@ -191,6 +197,10 @@ M22的result及offlinePaperToo必须提供，结果去首尾空白后非空、�
 M21/M23读取先记录集合范围、逐条举报及私有来源审计；原论文已删除也保留举报快照。M24读取先审计，默认action=all，具体类型去首尾空白、最多50个Unicode字符，绑定参数精确匹配；未知类型返回空数组，%、_不作为通配符。按time/id倒序，userName为操作当时快照；不提供日志编辑/删除接口。读取日志只追加一次访问审计，不递归记录每条日志。
 
 M25仅返回platformName/slogan/logoText/version/maxUploadMB/allowedTypes/contactEmail，版本展示V1.0，maxUploadMB取实际100MiB限制，allowedTypes=.pdf；平台文案/联系邮箱沿用前端占位信息。只读并记录访问，不提供保存接口，不返回任何密钥、数据库地址或文件路径。
+
+M1沿用前端管理首页口径：totals.users为role=user的全部普通账号（含disabled，不含管理员）；papers为未删除approved共享，pending为未删除pending共享。papersToday和uploadTrend按全部未删除共享上传统计（含全部审核状态，排除私有），usersToday和registerTrend按普通账号注册统计。今日按Asia/Shanghai的[当日00:00,次日00:00)，两条趋势均为当前月及前11个月补零，分别返回{months,papers}/{months,users}。
+
+M1的categoryDist只聚合已通过共享的根分类，不截断；recentUploads为全部状态未删除共享中最新6项，pendingTasks为全部未删除pending共享，均按uploadedAt/id倒序，不包含私有。管理首页聚合读取先独立持久化集合审计，失败不返回数据；统计、趋势、分类和列表在同一只读快照中查询。
 
 ## 9. 输入限制
 
