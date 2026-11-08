@@ -17,7 +17,7 @@ const loading = ref(false)
 const formRef = ref<FormInstance>()
 
 const form = reactive({
-  username: '',
+  username: typeof route.query.username === 'string' ? route.query.username : '',
   password: '',
   remember: true,
 })
@@ -191,7 +191,7 @@ function notifyNotReady() {
 
         <div v-if="mode === 'user'" class="register-entry">
           还没有账号？
-          <el-link type="primary" underline="never" @click="notifyNotReady"> 立即注册 </el-link>
+          <RouterLink :to="{ name: 'register' }">立即注册</RouterLink>
         </div>
         <div v-else class="admin-note">
           <el-icon :size="13"><InfoFilled /></el-icon>

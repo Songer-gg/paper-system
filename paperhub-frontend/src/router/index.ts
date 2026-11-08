@@ -11,6 +11,12 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/login' },
     {
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/login/RegisterView.vue'),
+      meta: { title: '用户注册' },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/login/LoginView.vue'),
@@ -209,7 +215,7 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
-  if (to.path === '/login') {
+  if (to.path === '/login' || to.path === '/register') {
     return auth.isLoggedIn ? auth.homePath : true
   }
 

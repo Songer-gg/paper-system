@@ -20,6 +20,23 @@ public class SecurityProperties {
     private List<String> allowedOrigins = new ArrayList<>();
     @Valid @NotNull
     private Login login = new Login();
+    @Valid @NotNull
+    private Registration registration = new Registration();
+
+    public Registration getRegistration() { return registration; }
+    public void setRegistration(Registration value) { registration = value; }
+
+    public static class Registration {
+        @NotNull private Duration window = Duration.ofMinutes(1);
+        @Min(1) private int perIp = 5;
+        @Min(1) private int maxEntries = 10000;
+        public Duration getWindow() { return window; }
+        public void setWindow(Duration value) { window = value; }
+        public int getPerIp() { return perIp; }
+        public void setPerIp(int value) { perIp = value; }
+        public int getMaxEntries() { return maxEntries; }
+        public void setMaxEntries(int value) { maxEntries = value; }
+    }
 
     public String getJwtSecret() { return jwtSecret; }
     public void setJwtSecret(String jwtSecret) { this.jwtSecret = jwtSecret; }

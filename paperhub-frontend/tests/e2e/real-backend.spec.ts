@@ -4,6 +4,39 @@ import { randomUUID } from 'node:crypto'
 const userA = process.env.PAPERHUB_E2E_USER_A!
 const userB = process.env.PAPERHUB_E2E_USER_B!
 const errors = new Map<Page, string[]>()
+
+test('ordinary registration returns to login and the new account has no admin access', async ({
+  page,
+}) => {
+  const username = 'browser_reg_' + randomUUID().replaceAll('-', '').slice(0, 16)
+  const password = '注册测试Pass123'
+  await page.goto('/login')
+  await page.getByRole('link', { name: '立即注册', exact: true }).click()
+  await expect(page).toHaveURL(/\/register$/)
+  await page.getByPlaceholder('以字母开头，3–50位字母、数字或下划线').fill(username)
+  await page.getByPlaceholder('请输入昵称', { exact: true }).fill('新注册研究员')
+  await page.getByPlaceholder('请输入邮箱', { exact: true }).fill(username + '@example.com')
+  await page.getByPlaceholder('8–72 UTF-8字节', { exact: true }).fill(password)
+  await page.getByPlaceholder('请再次输入密码', { exact: true }).fill('different')
+  await page.getByRole('button', { name: '注册账号', exact: true }).click()
+  await expect(page.getByText('两次密码输入不一致', { exact: true })).toBeVisible()
+  await page.getByPlaceholder('请再次输入密码', { exact: true }).fill(password)
+  await page.getByRole('button', { name: '注册账号', exact: true }).click()
+  await page.waitForURL(/\/login\?username=/)
+  await expect(page.getByPlaceholder('用户名或邮箱')).toHaveValue(username)
+  expect(
+    await page.evaluate(
+      () => localStorage.getItem('paperhub_auth') ?? sessionStorage.getItem('paperhub_auth'),
+    ),
+  ).toBeNull()
+  await login(page, username, password)
+  await page.goto('/user/library/mine')
+  await expect(page.locator('.paper-row')).toHaveCount(0)
+  const forbidden = await api(page, 'GET', '/admin/users')
+  expect(forbidden.code).toBe(1002)
+  await page.goto('/admin/dashboard')
+  await page.waitForURL('**/user/dashboard')
+})
 test.beforeEach(async ({ page }) => {
   const list: string[] = []
   errors.set(page, list)

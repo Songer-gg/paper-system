@@ -1,10 +1,10 @@
 # PaperHub RESTful API v1.1
 
-Base URL：`/api/v1`。共 67 端点。业务决策以 [BUSINESS_RULES.md](../BUSINESS_RULES.md) 为准；DTO 以 [ts/types.ts](ts/types.ts) 为准。本版按现有前端实际结构修订，取代 v1.0 的字段及权限冲突。
+Base URL：`/api/v1`。共 68 端点（新增用户授权的A2普通用户注册）。业务决策以 [BUSINESS_RULES.md](../BUSINESS_RULES.md) 为准；DTO 以 [ts/types.ts](ts/types.ts) 为准。本版按现有前端实际结构修订，取代 v1.0 的字段及权限冲突。
 
 ## 1. 全局协议
 
-除 A1 外全部验证 `Authorization: Bearer <JWT>`；role 来自数据库，登录请求 role 只用于校验入口。JWT 24 小时，用户状态与 token_version 每次验证；禁用、改密、重置密码使旧 token 失效。
+除 A1/A2 外全部验证 `Authorization: Bearer <JWT>`；role 来自数据库，登录请求 role 只用于校验入口。JWT 24 小时，用户状态与 token_version 每次验证；禁用、改密、重置密码使旧 token 失效。
 
 JSON：`{code:0,message:'ok',data:...}`。失败 data=null，不返回堆栈。
 
@@ -44,8 +44,13 @@ U10 分页 page>=1，pageSize 默认10、范围1–100，返回 `{list,total}`�
 | 编号 | Method | Path        | 请求                                     | data                     |
 | ---- | ------ | ----------- | ---------------------------------------- | ------------------------ |
 | A1   | POST   | /auth/login | `{username,password,role}`；用户名或邮箱 | `{token,user:LoginUser}` |
+| A2   | POST   | /auth/register | `{username,name,email,password,confirmPassword}` | LoginUser；不签发token，成功后进入用户登录 |
 
 失败统一“账号或密码错误，或当前登录入口不可用”，不暴露账号存在性。管理员随机重置密码一次响应展示，不记录明文。
+
+A2仅创建role=user、status=active、tokenVersion=0的普通用户，不接受role/status/id等额外字段。username去首尾空白后为3–50位ASCII字母、数字或下划线，以字母开头，存为小写；name去首尾空白后1–50个Unicode字符；email按P2规则规范化为小写并校验。用户名、邮箱不得与已有账号任一登录标识冲突，冲突返回409/1004“用户名或邮箱已被使用”，并以现有uk_username/uk_email兜底并发。不提供账号可用性查询接口。
+
+密码不trim，必须为有效Unicode、非全空白、无NUL的8–72 UTF-8字节，两次输入一致；仅保存BCrypt哈希。账号与“用户注册”审计日志同事务，失败整体回滚；响应不含密码、哈希或tokenVersion。默认每个直连IP每分钟最多5次有效格式的注册尝试，独立于登录限流，不信任X-Forwarded-For；超限400/1006。当前单实例内存限流，正式代理部署须配置受信任网关限流。本批不验证邮箱所有权或发送邮件，管理员仍由平台分配，没有公开管理员注册入口。
 
 ## 4. 论文
 

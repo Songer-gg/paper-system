@@ -1,10 +1,14 @@
 package cn.paperhub.auth.controller;
 
 import cn.paperhub.auth.dto.LoginRequest;
+import cn.paperhub.auth.dto.RegisterRequest;
+import cn.paperhub.auth.service.RegistrationService;
+import cn.paperhub.auth.vo.LoginUser;
 import cn.paperhub.auth.service.AuthService;
 import cn.paperhub.auth.vo.LoginResponse;
 import cn.paperhub.common.api.ApiResponse;
 import cn.paperhub.security.LoginRateLimiter;
+import cn.paperhub.security.RegistrationRateLimiter;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,9 +21,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final AuthService auth;
     private final LoginRateLimiter limiter;
-    public AuthController(AuthService auth, LoginRateLimiter limiter) {
+    private final RegistrationService registration;
+    private final RegistrationRateLimiter registrationLimiter;
+    public AuthController(AuthService auth, LoginRateLimiter limiter,
+            RegistrationService registration, RegistrationRateLimiter registrationLimiter) {
         this.auth = auth;
         this.limiter = limiter;
+        this.registration = registration;
+        this.registrationLimiter = registrationLimiter;
+    }
+    @PostMapping("/register")
+    public ApiResponse<LoginUser> register(@Valid @RequestBody RegisterRequest body, HttpServletRequest request) {
+        registrationLimiter.acquire(request.getRemoteAddr());
+        return ApiResponse.success(registration.register(body));
     }
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest body, HttpServletRequest request) {

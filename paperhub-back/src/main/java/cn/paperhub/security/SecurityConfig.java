@@ -52,7 +52,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint((req, res, ex) -> writer.write(res, ErrorCode.UNAUTHORIZED))
                 .accessDeniedHandler((req, res, ex) -> writer.write(res, ErrorCode.FORBIDDEN)).and()
                 .authorizeRequests()
-                .antMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                .antMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/register").permitAll()
                 .antMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .antMatchers("/api/v1/**").authenticated()
                 .anyRequest().denyAll().and()

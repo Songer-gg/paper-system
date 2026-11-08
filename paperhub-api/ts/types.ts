@@ -35,6 +35,14 @@ export interface LoginRequest {
   role: Role;
 }
 
+export interface RegisterRequest {
+  username: string;
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
 export interface LoginUser {
   id: number;
   username: string;

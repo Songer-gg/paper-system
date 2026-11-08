@@ -57,3 +57,7 @@ paperhub:
       per-ip: 20
       per-account: 10
       max-entries: 10000
+    registration:
+      window: 1m
+      per-ip: 5
+      max-entries: 10000

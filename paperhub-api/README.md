@@ -5,7 +5,7 @@
 ## 现行依据
 
 - [业务规则](../BUSINESS_RULES.md)：包括用户确认的管理员最高读取权限、敏感访问审计、用户撤回及逻辑删除。
-- [API 文档](api-spec.md)：67 个端点（原 64 个 + 管理员个人数据只读 M26–M28）。
+- [API 文档](api-spec.md)：68个端点（原64个 + 管理员个人数据只读M26–M28 + 用户授权新增普通注册A2）。
 - [TypeScript DTO](ts/types.ts)、[模块函数](ts/modules/)：代码级契约。
 - [数据库结构](db/schema.sql)、[演示种子](db/seed-demo.sql)、[ER 说明](db/er-design.md)。
 - [Java 开发规范](../paperhub-back/BACKEND_DEVELOPMENT_RULES.md)、[分批计划](../paperhub-back/BACKEND_DEVELOPMENT_PLAN.md)。
@@ -26,4 +26,4 @@ Base URL `/api/v1`；JWT Bearer；JSON `{code,message,data}`；分页 `{list,tot
 
 v1.1 已对齐前端的查重结果、重复对证据及状态、重复处理记录、管理员趋势、月度标签、密码结果、重置密码字符串和日期筛选。File、Promise、HTTP 方法及权限边界使用真实协议，具体接入步骤见开发计划。
 
-通知、注册、忘记密码、用户举报提交不自动新增。管理员个人数据只读端点来自用户明确授权，敏感访问必须服务端审计。
+普通注册A2已按用户后续要求优先开发；管理员不公开注册，开发账号见前后端README。通知、忘记密码、用户举报提交不自动新增。管理员个人数据只读端点来自用户明确授权，敏感访问必须服务端审计。

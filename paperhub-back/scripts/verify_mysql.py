@@ -182,6 +182,14 @@ def smoke(backend, env, database, frontend_e2e=False):
                     visited.add(('POST', '/papers'))
                     return envelope['data']
             marker = secrets.token_hex(8)
+            registration = {'username': 'http_reg_' + marker, 'name': 'HTTP registered user',
+                            'email': 'http_reg_' + marker + '@example.com',
+                            'password': 'Register-test-123', 'confirmPassword': 'Register-test-123'}
+            registered = api('POST', '/auth/register', registration)
+            assert registered['role'] == 'user' and set(registered) == {'id', 'username', 'name', 'email', 'role', 'registeredAt'}
+            registered_login = api('POST', '/auth/login', {'username': registration['email'],
+                                   'password': registration['password'], 'role': 'user'})
+            assert api('GET', '/papers/mine', token=registered_login['token']) == {'privatePapers': [], 'sharedPapers': []}
             category = api('POST', '/categories', {'name': 'HTTP root ' + marker, 'parentId': None})
             child = api('POST', '/categories', {'name': 'HTTP child ' + marker, 'parentId': category['id']})
             api('PATCH', '/categories/' + str(child['id']), {'name': 'HTTP renamed ' + marker})
@@ -406,7 +414,7 @@ def smoke(backend, env, database, frontend_e2e=False):
                          for item in re.findall(r'^\|\s*([A-Z]\d+)\s*\|\s*(GET|POST|PUT|PATCH|DELETE)\s*\|\s*([^|]+)\|', contract, re.MULTILINE)]
             coverage = {'expected': len(endpoints), 'covered': sum(row['covered'] for row in endpoints), 'endpoints': endpoints}
             (backend / 'target' / 'http-endpoint-coverage.json').write_text(json.dumps(coverage, indent=2), encoding='utf-8')
-            assert coverage['expected'] == 67 and coverage['covered'] == 67, [row['id'] for row in endpoints if not row['covered']]
+            assert coverage['expected'] == 68 and coverage['covered'] == 68, [row['id'] for row in endpoints if not row['covered']]
             if frontend_e2e:
                 fixture = database.root / 'browser-fixture.pdf'
                 fixture.write_bytes(pdf)
@@ -433,7 +441,7 @@ def smoke(backend, env, database, frontend_e2e=False):
                 if result.returncode:
                     raise RuntimeError('Browser verification failed; see target/frontend-e2e-console.log')
                 print('PASS: isolated real frontend browser workflows')
-            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M1-M28, R1-R9 and P1-P6; all 67 API endpoints')
+            print('PASS: Java 8 HTTP login/registration, K1-K11, PDFs, U5/U6/U10-U12, M1-M28, R1-R9 and P1-P6; all 68 API endpoints')
         finally:
             app.terminate()
             try:

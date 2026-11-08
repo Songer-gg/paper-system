@@ -6,6 +6,8 @@ Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8�
 
 8080提供受保护的后端API，直接浏览器访问可能返回1001；Vue页面访问http://localhost:5173，启动方式见[前端说明](../paperhub-frontend/README.md)，部署配置见[DEPLOYMENT.md](DEPLOYMENT.md)。
 
+用户要求优先补齐的第10批普通注册见[BATCH_10_DELIVERY.md](BATCH_10_DELIVERY.md)，当前共68个端点。网页测试账号：管理员入口admin/admin123；用户入口researcher/123456。新用户可在登录页点击“立即注册”或访问http://localhost:5173/register；注册成功后重新登录，只能创建普通用户。开发账号不等于数据库root账号，不用于生产。
+
 ## 环境
 
 - JDK 8（必须同时有 java 和 javac），Maven 3.6.3+（已附Maven Wrapper，固定3.9.9并校验分发包SHA-256）。

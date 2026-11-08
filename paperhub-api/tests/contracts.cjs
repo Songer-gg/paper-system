@@ -64,6 +64,10 @@ async function main() {
   const profile = api("modules/profile");
   const admin = api("modules/admin");
   const reading = api("modules/reading");
+  const auth = api("modules/auth");
+  const registration = { username: "new_user", name: "New User", email: "new@example.com", password: "password123", confirmPassword: "password123" };
+  await auth.register(fake, registration);
+  assert.deepEqual(calls.pop(), { method: "post", args: ["/auth/register", registration] });
   await library.downloadPaper(fake, 1);
   assert.deepEqual(calls.pop(), {
     method: "download",
@@ -249,7 +253,7 @@ async function main() {
         .readFileSync(path.join(root, "paperhub-api/api-spec.md"), "utf8")
         .match(/^\|\s+[A-Z]\d+\s+\|/gm) ?? []
     ).length,
-    67,
+    68,
   );
   console.log(
     "PASS: transport contracts, JSON/PDF errors, user isolation, withdrawal and retained notes",
