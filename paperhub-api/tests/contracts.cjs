@@ -64,6 +64,16 @@ async function main() {
   const profile = api("modules/profile");
   const admin = api("modules/admin");
   const reading = api("modules/reading");
+  await library.lookupPaperMetadata(fake, '10.1234/test');
+  assert.deepEqual(calls.pop(), { method: 'post', args: ['/papers/metadata/lookup', { doi: '10.1234/test' }] });
+  const metadataFile = new File(['%PDF-1.7'], 'metadata.pdf');
+  await library.parsePaperMetadata(fake, metadataFile);
+  const metadataCall = calls.pop();
+  assert.equal(metadataCall.method, 'upload');
+  assert.equal(metadataCall.args[0], '/papers/metadata/parse');
+  assert.equal(metadataCall.args[1].get('file').name, 'metadata.pdf');
+  assert.equal(metadataCall.args[1].has('payload'), false);
+  assert.equal(metadataCall.args[2], 'POST');
   const auth = api("modules/auth");
   const registration = { username: "new_user", name: "New User", email: "new@example.com", password: "password123", confirmPassword: "password123" };
   await auth.register(fake, registration);
@@ -253,7 +263,7 @@ async function main() {
         .readFileSync(path.join(root, "paperhub-api/api-spec.md"), "utf8")
         .match(/^\|\s+[A-Z]\d+\s+\|/gm) ?? []
     ).length,
-    68,
+    70,
   );
   console.log(
     "PASS: transport contracts, JSON/PDF errors, user isolation, withdrawal and retained notes",

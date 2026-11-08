@@ -1,6 +1,6 @@
 # PaperHub RESTful API v1.1
 
-Base URL：`/api/v1`。共 68 端点（新增用户授权的A2普通用户注册）。业务决策以 [BUSINESS_RULES.md](../BUSINESS_RULES.md) 为准；DTO 以 [ts/types.ts](ts/types.ts) 为准。本版按现有前端实际结构修订，取代 v1.0 的字段及权限冲突。
+Base URL：`/api/v1`。共70端点（用户授权新增普通注册、本机PDF解析及DOI联网补全U14）。业务决策以 [BUSINESS_RULES.md](../BUSINESS_RULES.md) 为准；DTO 以 [ts/types.ts](ts/types.ts) 为准。本版按现有前端实际结构修订，取代 v1.0 的字段及权限冲突。
 
 ## 1. 全局协议
 
@@ -68,6 +68,16 @@ A2仅创建role=user、status=active、tokenVersion=0的普通用户，不接受
 | U10  | GET    | /shared-papers                | SharedQuery                             | PageResult<Paper>，仅 shared/approved/未删除                     |
 | U11  | GET    | /shared-papers/{id}           | id                                      | Paper；仅已通过共享，否则1003                                    |
 | U12  | GET    | /shared-papers/filter-options | 无                                      | `{categories,tags,years,journals}`，仅来自可见共享池             |
+| U13  | POST   | /papers/metadata/parse        | multipart file=PDF（需登录，最多20MiB） | PaperMetadata：候选字段、页数、来源及warnings；不创建论文 |
+| U14  | POST   | /papers/metadata/lookup       | `{doi}`，需登录 | PaperMetadata，sources=crossref及lookupStatus；不创建论文 |
+
+U14只向固定HTTPS api.crossref.org发送规范化DOI，不发送PDF、摘要、题目、登录身份或用户邮箱，不访问DOI指向的出版商网页，不跟随跳转。DOI按U7规范化，空/非法/额外字段422；正常查询返回200，lookupStatus为found/not-found/unavailable/disabled/busy，外部断网、429、超时或无记录不影响手填及原上传。Crossref没有摘要时明确提示，不把题目、正文或空白生成成摘要。摘要JATS/HTML转纯文本，不执行标记或外部实体；出版年份取出版元数据，不以存入时间替代。
+
+最多2个联网任务，连接3秒、读取4秒、读取循环总截止10秒，响应最多2MiB、JSON深度最多64；DNS及单次阻塞读取不属于进程级硬中断。缓存最多128条公开DOI元数据，命中30分钟、无记录5分钟，失败不缓存；不缓存账号、PDF或私人笔记。PAPERHUB_CROSSREF_ENABLED=false可关闭联网。前端默认启用“DOI联网补全（仅发送DOI）”，可关闭；本机发现DOI后自动补全，也可手填DOI点击补全。只更新空白或本次自动填写且未编辑的值，手填值优先；更换文件、退出、跳过及迟到响应仍隔离。仅凭DOI精确查询，不做题目模糊匹配。
+
+U13仅在本机用PDFBox读取文档元信息及前3页文字，最多80000个提取字符；不访问DOI网址、外部AI或任何联网补全服务。返回title/authors/abstract/doi/journal/year/keywords、pageCount、parsedPages、sources（metadata/text）及warnings；未识别字符串为空、数组为[]、year=null。文档创建时间不能当作发表年份；引用文献中的DOI不作论文DOI。元信息或首页版式推测仍需用户核对，扫描件不执行OCR，返回提示并允许手填。
+
+解析限最多2个实际工作任务，繁忙或等待20秒超时返回400/1006，超时工作仍占用任务名额直到清理结束；文字提取有10秒协作截止检查。文件空、非PDF、损坏、加密或超过解析20MiB限制返回422/1005，正式上传原100MiB限制保持不变。解析不写论文/个人记录、不保留上传PDF或公开临时路径；PDFBox缓存使用私有临时目录，关闭文档清理。前端仅补空字段，保留手填内容；更换/移除文件清除该文件仍未改动的自动值，并忽略迟到响应，提交时重新执行原有全部校验、版权与查重。
 
 Paper 含前端全部元数据和 `uploaderName`；不含 file_path、file_sha256、密码或生成列。reviewComment 仅本人及管理员返回。offlineReason=withdrawn|moderation。`link` 是 http/https 原文链接，不是服务器路径。
 

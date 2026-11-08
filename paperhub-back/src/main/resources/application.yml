@@ -45,6 +45,8 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
 
 paperhub:
+  metadata:
+    crossref-enabled: ${PAPERHUB_CROSSREF_ENABLED:true}
   storage:
     root: ${PAPERHUB_STORAGE_ROOT:./data/storage}
     cleanup-enabled: ${PAPERHUB_CLEANUP_ENABLED:true}

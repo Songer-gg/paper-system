@@ -1,9 +1,262 @@
 ﻿import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
+import type { Route } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 const userA = process.env.PAPERHUB_E2E_USER_A!
 const userB = process.env.PAPERHUB_E2E_USER_B!
 const errors = new Map<Page, string[]>()
+
+function providerMetadata(doi: string, abstract = 'A provider abstract with complete results.') {
+  return {
+    title: 'Provider canonical title',
+    authors: ['Provider Author'],
+    abstract,
+    doi,
+    journal: 'Provider Journal',
+    year: 2024,
+    keywords: [],
+    pageCount: 0,
+    parsedPages: 0,
+    sources: { title: 'crossref', authors: 'crossref', abstract: 'crossref', year: 'crossref' },
+    warnings: [],
+    lookupStatus: 'found',
+  }
+}
+
+test('DOI metadata fills and corrects automatic values while preserving manual title and abstract', async ({
+  page,
+}) => {
+  await login(page, userA)
+  await page.goto('/user/papers/upload')
+  let bodies: unknown[] = []
+  await page.route('**/api/v1/papers/metadata/lookup', (route) => {
+    const body = route.request().postDataJSON() as { doi: string }
+    bodies = [...bodies, body]
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: providerMetadata(body.doi) }),
+    })
+  })
+  await page.getByPlaceholder('请输入论文标题', { exact: true }).fill('My manual title')
+  await page.locator('input[type=file]').setInputFiles(process.env.PAPERHUB_E2E_METADATA_PDF!)
+  await expect(page.getByText(/联网来源：Crossref/)).toBeVisible()
+  await expect(page.getByPlaceholder('请输入论文标题', { exact: true })).toHaveValue(
+    'My manual title',
+  )
+  await expect(page.getByPlaceholder('请输入论文摘要', { exact: true })).toHaveValue(
+    'A provider abstract with complete results.',
+  )
+  await expect(page.getByPlaceholder('多个作者用逗号分隔，如：张三，李四')).toHaveValue(
+    'Provider Author',
+  )
+  expect(bodies).toEqual([{ doi: '10.1234/local.parse' }])
+  await page.getByPlaceholder('请输入论文摘要', { exact: true }).fill('My corrected abstract')
+  await page.getByRole('button', { name: '按DOI补全', exact: true }).click()
+  await expect(page.getByText(/联网来源：Crossref/)).toBeVisible()
+  await expect(page.getByPlaceholder('请输入论文摘要', { exact: true })).toHaveValue(
+    'My corrected abstract',
+  )
+})
+
+test('automatic DOI opt out sends no lookup and manual missing-abstract lookup stays explicit', async ({
+  page,
+}) => {
+  await login(page, userA)
+  await page.goto('/user/papers/upload')
+  let lookups = 0
+  await page.route('**/api/v1/papers/metadata/lookup', (route) => {
+    lookups++
+    const body = route.request().postDataJSON() as { doi: string }
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 0,
+        data: {
+          ...providerMetadata(body.doi, ''),
+          warnings: ['该DOI的Crossref记录未提供可用摘要，请手动补充或继续本机识别'],
+        },
+      }),
+    })
+  })
+  await page.getByText('自动按DOI联网补全（只发送DOI，不发送论文正文）', { exact: true }).click()
+  await page.locator('input[type=file]').setInputFiles(process.env.PAPERHUB_E2E_IMAGE_PDF!)
+  await expect(page.getByText(/扫描件需要OCR/)).toBeVisible()
+  expect(lookups).toBe(0)
+  await page
+    .getByPlaceholder('如 10.1109/XXX.2026.00001，共享时将用于查重')
+    .fill('10.1234/no-abstract')
+  await page.getByRole('button', { name: '按DOI补全', exact: true }).click()
+  await expect(page.getByText(/未提供可用摘要/)).toBeVisible()
+  await expect(page.getByPlaceholder('请输入论文摘要', { exact: true })).toHaveValue('')
+  expect(lookups).toBe(1)
+})
+
+test('skipping network keeps local data and late provider responses cannot overwrite a new DOI or manual edits', async ({
+  page,
+}) => {
+  await login(page, userA)
+  await page.goto('/user/papers/upload')
+  let held: Route | null = null
+  await page.route('**/api/v1/papers/metadata/lookup', (route) => {
+    if (!held) {
+      held = route
+      return
+    }
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 0,
+        data: {
+          ...providerMetadata('10.1234/new', ''),
+          title: '',
+          authors: [],
+          journal: '',
+          year: null,
+          lookupStatus: 'unavailable',
+          warnings: ['Crossref暂不可用，已保留本机识别结果'],
+        },
+      }),
+    })
+  })
+  await page.locator('input[type=file]').setInputFiles(process.env.PAPERHUB_E2E_METADATA_PDF!)
+  await expect.poll(() => held !== null).toBe(true)
+  await page.getByRole('button', { name: '跳过识别', exact: true }).click()
+  await expect(page.getByPlaceholder('请输入论文摘要', { exact: true })).toHaveValue(
+    'We study local document parsing without network services.',
+  )
+  await page.getByPlaceholder('请输入论文摘要', { exact: true }).fill('Keep this manual abstract')
+  await page.getByPlaceholder('如 10.1109/XXX.2026.00001，共享时将用于查重').fill('10.1234/new')
+  await page.getByRole('button', { name: '按DOI补全', exact: true }).click()
+  await expect(page.getByText(/Crossref暂不可用/)).toBeVisible()
+  const stale = held as Route | null
+  if (!stale) throw new Error('Expected delayed provider request')
+  const response = page.waitForResponse((value) => value.request() === stale.request())
+  await stale.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      code: 0,
+      data: providerMetadata('10.1234/local.parse', 'Stale abstract'),
+    }),
+  })
+  await (await response).finished()
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  )
+  await expect(page.getByPlaceholder('请输入论文摘要', { exact: true })).toHaveValue(
+    'Keep this manual abstract',
+  )
+  await expect(page.getByPlaceholder('如 10.1109/XXX.2026.00001，共享时将用于查重')).toHaveValue(
+    '10.1234/new',
+  )
+})
+
+test('local PDF parsing fills metadata while preserving hand-entered title and full author names', async ({
+  page,
+}) => {
+  await login(page, userA)
+  await page.goto('/user/papers/upload')
+  const title = 'Hand entered ' + randomUUID()
+  await page.getByPlaceholder('请输入论文标题', { exact: true }).fill(title)
+  await page.locator('input[type=file]').setInputFiles(process.env.PAPERHUB_E2E_METADATA_PDF!)
+  await expect(page.getByText(/已自动填写：/)).toBeVisible()
+  await expect(page.getByPlaceholder('请输入论文标题', { exact: true })).toHaveValue(title)
+  await expect(page.getByPlaceholder('多个作者用逗号分隔，如：张三，李四')).toHaveValue(
+    'John Smith，Jane Doe',
+  )
+  await expect(page.getByPlaceholder('请输入论文摘要', { exact: true })).toHaveValue(
+    'We study local document parsing without network services.',
+  )
+  await page.getByText('选择分类（支持二级分类）', { exact: true }).click()
+  await page.getByText('人工智能', { exact: true }).last().click()
+  const summary = page.getByPlaceholder('请输入论文摘要', { exact: true })
+  await summary.fill('密'.repeat(20001))
+  await page.getByRole('button', { name: '上传到私有库', exact: true }).click()
+  await expect(page.getByText('摘要不能超过60000 UTF-8字节', { exact: true })).toBeVisible()
+  const longSummary = 'A long original summary for local parsing verification. '.repeat(30)
+  await summary.fill(longSummary)
+  await expect(summary).toHaveValue(longSummary)
+  await page.route('**/api/v1/papers/metadata/parse', (route) => route.abort())
+  await page.getByRole('button', { name: '重新识别', exact: true }).click()
+  await expect(page.getByText(/有效PDF可手动填写后提交/)).toBeVisible()
+  await expect(page.getByPlaceholder('多个作者用逗号分隔，如：张三，李四')).toHaveValue(
+    'John Smith，Jane Doe',
+  )
+  await expect(summary).toHaveValue(longSummary)
+  await page.unroute('**/api/v1/papers/metadata/parse')
+  const submitted = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/papers' &&
+      response.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: '上传到私有库', exact: true }).click()
+  const data = (await (await submitted).json()).data
+  expect(data.title).toBe(title)
+  expect(data.authors).toEqual(['John Smith', 'Jane Doe'])
+  expect(data.keywords).toEqual(['deep learning', 'document analysis'])
+  expect(data.year).toBe(2025)
+  expect(data.abstract).toBe(longSummary.trim())
+  await page.waitForURL('**/user/library/mine*')
+})
+
+test('image PDF allows manual entry and old parse responses cannot fill a replacement file', async ({
+  page,
+}) => {
+  await login(page, userA)
+  await page.goto('/user/papers/upload')
+  let held: Route | null = null
+  await page.route('**/api/v1/papers/metadata/parse', (route) => {
+    if (!held) {
+      held = route
+      return
+    }
+    return route.continue()
+  })
+  await page.locator('input[type=file]').setInputFiles(process.env.PAPERHUB_E2E_METADATA_PDF!)
+  await expect.poll(() => held !== null).toBe(true)
+  await page.getByPlaceholder('请输入论文标题', { exact: true }).fill('Keep my manual title')
+  await page.getByRole('button', { name: '移除', exact: true }).click()
+  await page.locator('input[type=file]').setInputFiles(process.env.PAPERHUB_E2E_IMAGE_PDF!)
+  await expect(page.getByText(/扫描件需要OCR/)).toBeVisible()
+  const stale = held as Route | null
+  if (!stale) throw new Error('Expected first metadata request')
+  const response = page.waitForResponse((value) => value.request() === stale.request())
+  await stale.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      code: 0,
+      data: {
+        title: 'Stale title',
+        authors: ['Stale Author'],
+        abstract: 'Stale abstract',
+        doi: '10.1234/stale',
+        journal: '',
+        year: 2025,
+        keywords: ['stale'],
+        pageCount: 1,
+        parsedPages: 1,
+        sources: {},
+        warnings: [],
+      },
+    }),
+  })
+  await (await response).finished()
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  )
+  await expect(page.getByPlaceholder('请输入论文标题', { exact: true })).toHaveValue(
+    'Keep my manual title',
+  )
+  await expect(page.getByPlaceholder('多个作者用逗号分隔，如：张三，李四')).toHaveValue('')
+  await expect(page.getByPlaceholder('请输入论文摘要', { exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: '上传到私有库', exact: true })).toBeEnabled()
+})
 
 test('ordinary registration returns to login and the new account has no admin access', async ({
   page,
@@ -228,7 +481,7 @@ test('shared review favorite reading retained safe notes and withdrawal protecti
     ).toBe(false)
     await page.locator('.user-chip').click()
     await page.getByRole('menuitem', { name: '退出登录' }).click()
-    await page.getByRole('dialog').getByRole('button', { name: /退出/ }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '退出', exact: true }).press('Enter')
     await page.waitForURL(/\/login(?:\?.*)?$/)
     await login(page, userB)
     expect(

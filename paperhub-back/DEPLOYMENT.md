@@ -19,6 +19,10 @@
 
 头像/论文存储在Web根目录外；data/storage及.cleanup持久化清理队列须一并保留，禁止公开映射/storage或data。所有PDF均经带鉴权的/api/v1/papers/{id}/file或download访问。当前文件存储按单实例设计；多实例应先统一存储方案，共享目录命名锁依赖同一MySQL主节点。
 
+U13自动解析另限20MiB，只读取元信息及前3页，不产生业务文件或论文；PDFBox.scratch为私有缓存目录。每实例最多2个实际解析任务，请求等待20秒；超时工作继续占用名额直至清理，PDF加载不是硬中断或进程隔离。正式环境应结合资源监控及可信网关限流，不能因新增超时返回就视为无限制PDF处理已安全隔离。
+
+U14默认启用Crossref DOI联网补全，后端须可访问https://api.crossref.org；仅发送DOI，不上传PDF，连接/读取及响应大小有限制，不跟随跳转。受限网络可设置PAPERHUB_CROSSREF_ENABLED=false，保留本机解析与手填。外网故障不阻断上传；公开元数据缓存仅在单实例内存中保存，不持久化。来源未提供摘要不能靠启用联网保证补齐。
+
 ## 反向代理
 
 示例见deploy/nginx.conf.example：静态dist及/api同源代理，history路由回退index.html；multipart总大小上限至少102MiB，读取超时覆盖大文件上传/下载。正式环境使用HTTPS，后端CORS白名单填写实际站点源。Nginx示例只供配置审阅，需替换域名、站点路径及证书配置；本轮不启动或发布Nginx。

@@ -8,6 +8,10 @@ Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8�
 
 用户要求优先补齐的第10批普通注册见[BATCH_10_DELIVERY.md](BATCH_10_DELIVERY.md)，当前共68个端点。网页测试账号：管理员入口admin/admin123；用户入口researcher/123456。新用户可在登录页点击“立即注册”或访问http://localhost:5173/register；注册成功后重新登录，只能创建普通用户。开发账号不等于数据库root账号，不用于生产。
 
+第11批新增本机PDF解析U13，当前共69个端点、250项后端测试、69接口HTTP和7组隔离浏览器流程通过。选择PDF后可自动补填论文信息并人工核对；解析上限20MiB、前3页，不做OCR或联网补全，不创建论文，正式上传仍保留100MiB限制及完整校验。详见[BATCH_11_DELIVERY.md](BATCH_11_DELIVERY.md)。
+
+第12批已新增独立DOI补全U14，并修复用户原文件的无标题摘要漏识别；当前70端点、275项测试及10组隔离浏览器流程通过。只向Crossref发送DOI，当前无摘要的记录保留本机结果；默认启用，可通过PAPERHUB_CROSSREF_ENABLED=false关闭。用户原PDF和本机Java8真实联网均已验证，见[BATCH_12_DELIVERY.md](BATCH_12_DELIVERY.md)。
+
 ## 环境
 
 - JDK 8（必须同时有 java 和 javac），Maven 3.6.3+（已附Maven Wrapper，固定3.9.9并校验分发包SHA-256）。

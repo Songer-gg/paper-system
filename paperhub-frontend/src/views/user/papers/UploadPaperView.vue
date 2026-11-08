@@ -7,6 +7,7 @@ import type { Category, Paper, Tag } from '@/types/paper'
 import * as myLibrary from '@/services/myLibraryService'
 import * as userData from '@/services/userDataService'
 import { getCategories, getTags } from '@/services/knowledgeService'
+import { usePaperMetadata } from '@/composables/usePaperMetadata'
 
 const router = useRouter()
 const categories = ref<Category[]>([])
@@ -26,6 +27,7 @@ const uploading = ref(false)
 
 async function handleFileChange(uploadFile: UploadFile) {
   const selection = ++fileSelection
+  metadata.reset()
   file.value = null
   uploadProgress.value = 0
   uploading.value = false
@@ -58,6 +60,7 @@ async function handleFileChange(uploadFile: UploadFile) {
       ),
     }
     uploadProgress.value = 100
+    void metadata.parse(raw)
   } catch (error) {
     if (selection !== fileSelection) return
     uploadRef.value?.clearFiles()
@@ -73,6 +76,7 @@ onUnmounted(() => {
 
 function removeFile() {
   fileSelection++
+  metadata.reset()
   file.value = null
   uploadProgress.value = 0
   uploading.value = false
@@ -95,8 +99,24 @@ const form = reactive({
   visibility: 'private' as 'private' | 'shared',
 })
 const copyrightAgreed = ref(false)
+const metadata = usePaperMetadata(form)
+const {
+  parsing,
+  message: metadataMessage,
+  warning: metadataWarning,
+  result: parsedMetadata,
+  networkEnabled,
+  phase: metadataPhase,
+} = metadata
 
-const yearOptions = Array.from({ length: 36 }, (_, i) => new Date().getFullYear() - i)
+const yearOptions = computed(() =>
+  [
+    ...new Set([
+      ...Array.from({ length: 36 }, (_, i) => new Date().getFullYear() - i),
+      ...(form.year === null ? [] : [form.year]),
+    ]),
+  ].sort((a, b) => b - a),
+)
 
 interface CascaderNode {
   value: number
@@ -115,7 +135,19 @@ const categoryTree = computed<CascaderNode[]>(() => {
 const rules: FormRules = {
   title: [{ required: true, message: '请输入论文标题', trigger: 'blur' }],
   authors: [{ required: true, message: '请输入作者，多个作者用逗号分隔', trigger: 'blur' }],
-  abstract: [{ required: true, message: '请输入论文摘要', trigger: 'blur' }],
+  abstract: [
+    { required: true, message: '请输入论文摘要', trigger: 'blur' },
+    {
+      validator: (_rule: unknown, value: string, done: (error?: Error) => void) => {
+        done(
+          new TextEncoder().encode(value).length <= 60000
+            ? undefined
+            : new Error('摘要不能超过60000 UTF-8字节'),
+        )
+      },
+      trigger: 'blur',
+    },
+  ],
   year: [{ required: true, message: '请选择发表年份', trigger: 'change' }],
   categoryId: [{ required: true, message: '请选择论文分类', trigger: 'change' }],
 }
@@ -197,12 +229,18 @@ async function doSubmit() {
   try {
     const paper = await myLibrary.submitPaper(file.value!.raw, {
       title: form.title,
-      authors: form.authors.split(/[,，、\s]+/).filter(Boolean),
+      authors: form.authors
+        .split(/[,，、;；]+/)
+        .map((author) => author.trim())
+        .filter(Boolean),
       abstract: form.abstract,
       doi: form.doi,
       journal: form.journal,
       year: form.year!,
-      keywords: form.keywords.split(/[,，、\s]+/).filter(Boolean),
+      keywords: form.keywords
+        .split(/[,，、;；]+/)
+        .map((keyword) => keyword.trim())
+        .filter(Boolean),
       categoryId: form.categoryId!,
       tagIds: form.tagIds,
       visibility: form.visibility,
@@ -225,6 +263,7 @@ async function doSubmit() {
 }
 
 async function handleSubmit() {
+  if (submitting.value || parsing.value) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   if (!file.value) {
@@ -294,6 +333,9 @@ function handleCancel() {
             </div>
           </div>
 
+          <el-checkbox v-model="networkEnabled"
+            >自动按DOI联网补全（只发送DOI，不发送论文正文）</el-checkbox
+          >
           <el-upload
             v-if="!file"
             ref="uploadRef"
@@ -307,7 +349,7 @@ function handleCancel() {
             <div class="drop-zone">
               <el-icon :size="42" color="#c7d2e8"><UploadFilled /></el-icon>
               <div class="drop-title">拖拽 PDF 文件到此处，或点击选择文件</div>
-              <div class="drop-sub">选择文件后，点击提交上传至服务器</div>
+              <div class="drop-sub">选择后自动识别论文信息，核对后点击提交入库</div>
             </div>
           </el-upload>
 
@@ -315,7 +357,10 @@ function handleCancel() {
             <div class="file-icon">PDF</div>
             <div class="file-info">
               <div class="file-name ph-ellipsis">{{ file.name }}</div>
-              <div class="file-meta">{{ file.sizeMB }} MB · 页数以服务器解析为准</div>
+              <div class="file-meta">
+                {{ file.sizeMB }} MB ·
+                {{ parsedMetadata ? `${parsedMetadata.pageCount} 页` : '页数以服务器解析为准' }}
+              </div>
             </div>
             <div class="file-progress">
               <template v-if="uploading">
@@ -326,7 +371,39 @@ function handleCancel() {
                 <span class="ph-status ph-status--success">文件已就绪</span>
               </template>
             </div>
-            <el-button text :icon="'Delete'" class="danger-btn" @click="removeFile">移除</el-button>
+            <el-button
+              text
+              :icon="'Delete'"
+              class="danger-btn"
+              :disabled="submitting"
+              @click="removeFile"
+              >移除</el-button
+            >
+          </div>
+          <div v-if="file" class="metadata-panel" aria-live="polite">
+            <el-alert
+              :title="
+                parsing
+                  ? metadataPhase === 'network'
+                    ? '正在按DOI联网补全…'
+                    : '正在识别论文信息…'
+                  : '论文信息自动识别'
+              "
+              :description="
+                parsing
+                  ? metadataPhase === 'network'
+                    ? metadataMessage
+                    : '识别完成后会补充空白字段，你已填写的内容会保留。'
+                  : metadataMessage
+              "
+              :type="metadataWarning ? 'warning' : 'info'"
+              :closable="false"
+              show-icon
+            />
+            <el-button v-if="parsing" text @click="metadata.skip">跳过识别</el-button>
+            <el-button v-else text :disabled="submitting" @click="metadata.parse(file.raw)"
+              >重新识别</el-button
+            >
           </div>
         </section>
 
@@ -352,7 +429,7 @@ function handleCancel() {
               <el-input
                 v-model="form.title"
                 placeholder="请输入论文标题"
-                maxlength="120"
+                maxlength="255"
                 show-word-limit
               />
             </el-form-item>
@@ -377,7 +454,16 @@ function handleCancel() {
               <el-input
                 v-model="form.doi"
                 placeholder="如 10.1109/XXX.2026.00001，共享时将用于查重"
-              />
+              >
+                <template #append>
+                  <el-button :disabled="parsing || !form.doi.trim()" @click="metadata.lookup"
+                    >按DOI补全</el-button
+                  >
+                </template>
+              </el-input>
+              <p v-if="!file && metadataMessage" class="doi-lookup-message" aria-live="polite">
+                {{ metadataMessage }}
+              </p>
             </el-form-item>
             <el-form-item label="摘要" prop="abstract">
               <el-input
@@ -385,7 +471,7 @@ function handleCancel() {
                 type="textarea"
                 :rows="4"
                 placeholder="请输入论文摘要"
-                maxlength="600"
+                maxlength="60000"
                 show-word-limit
               />
             </el-form-item>
@@ -521,7 +607,7 @@ function handleCancel() {
             size="large"
             class="submit-btn"
             :loading="submitting"
-            :disabled="copyrightRule"
+            :disabled="copyrightRule || parsing"
             @click="handleSubmit"
           >
             {{ form.visibility === 'shared' ? '提交审核' : '上传到私有库' }}
@@ -651,6 +737,12 @@ function handleCancel() {
 .upload-section :deep(.el-upload-dragger) {
   border-radius: 12px;
   padding: 0;
+}
+.metadata-panel {
+  margin-top: 16px;
+}
+.metadata-panel > .el-button {
+  margin-top: 8px;
 }
 .file-card {
   display: flex;

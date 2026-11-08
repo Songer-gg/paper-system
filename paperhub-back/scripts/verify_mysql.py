@@ -116,6 +116,10 @@ class TemporaryMySql:
 def smoke(backend, env, database, frontend_e2e=False):
     jar = backend / 'target' / 'paperhub-back-0.1.0-SNAPSHOT.jar'
     app_env = dict(env, PAPERHUB_PORT=str(free_port()))
+    if frontend_e2e:
+        # The expanded browser suite performs >20 logins/minute from one loopback IP.
+        # Only this disposable executable server gets a larger IP budget; production and IT defaults stay unchanged.
+        app_env['SPRING_APPLICATION_JSON'] = json.dumps({'paperhub': {'security': {'login': {'per-ip': 100}}}})
     browser_base = 'http://127.0.0.1:' + str(free_port()) if frontend_e2e else None
     if browser_base:
         app_env['PAPERHUB_ALLOWED_ORIGINS'] = browser_base
@@ -199,6 +203,20 @@ def smoke(backend, env, database, frontend_e2e=False):
             api('PATCH', '/tags/' + str(tag['id']), {'name': 'HTTP tag updated ' + marker, 'color': '#15803D'})
             fixture = next((Path(env['PAPERHUB_STORAGE_ROOT']) / 'papers').glob('*.pdf'))
             pdf = fixture.read_bytes()
+            metadata_pdf = (database.root / 'metadata-fixture.pdf').read_bytes()
+            parse_boundary = 'PaperHub' + secrets.token_hex(16)
+            parse_body = (('--' + parse_boundary + '\r\nContent-Disposition: form-data; name="file"; '
+                           'filename="metadata.pdf"\r\nContent-Type: application/pdf\r\n\r\n').encode() + metadata_pdf +
+                          ('\r\n--' + parse_boundary + '--\r\n').encode())
+            parse_request = urllib.request.Request(base + '/papers/metadata/parse', parse_body,
+                dict(headers, **{'Content-Type': 'multipart/form-data; boundary=' + parse_boundary}), method='POST')
+            with urllib.request.urlopen(parse_request, timeout=30) as response:
+                parsed = json.load(response)
+            assert parsed['code'] == 0 and parsed['data']['title'] == 'Local Parsing of Scientific Papers'
+            assert parsed['data']['authors'] == ['John Smith', 'Jane Doe'] and parsed['data']['year'] == 2025
+            visited.add(('POST', '/papers/metadata/parse'))
+            lookup = api('POST', '/papers/metadata/lookup', {'doi': '10.1234/offline-fixture'})
+            assert lookup['lookupStatus'] == 'disabled' and not lookup['abstract']
             payload = {'title': 'HTTP smoke ' + secrets.token_hex(8), 'authors': ['Smoke author'],
                        'abstract': 'Real HTTP multipart verification', 'year': 2026, 'categoryId': child['id'],
                        'tagIds': [tag['id']], 'keywords': [], 'visibility': 'private', 'copyrightAgreed': False}
@@ -414,7 +432,7 @@ def smoke(backend, env, database, frontend_e2e=False):
                          for item in re.findall(r'^\|\s*([A-Z]\d+)\s*\|\s*(GET|POST|PUT|PATCH|DELETE)\s*\|\s*([^|]+)\|', contract, re.MULTILINE)]
             coverage = {'expected': len(endpoints), 'covered': sum(row['covered'] for row in endpoints), 'endpoints': endpoints}
             (backend / 'target' / 'http-endpoint-coverage.json').write_text(json.dumps(coverage, indent=2), encoding='utf-8')
-            assert coverage['expected'] == 68 and coverage['covered'] == 68, [row['id'] for row in endpoints if not row['covered']]
+            assert coverage['expected'] == 70 and coverage['covered'] == 70, [row['id'] for row in endpoints if not row['covered']]
             if frontend_e2e:
                 fixture = database.root / 'browser-fixture.pdf'
                 fixture.write_bytes(pdf)
@@ -430,6 +448,8 @@ def smoke(backend, env, database, frontend_e2e=False):
                     PAPERHUB_API_PROXY='http://127.0.0.1:' + app_env['PAPERHUB_PORT'],
                     PAPERHUB_E2E_USER_A=user_a, PAPERHUB_E2E_USER_B=user_b,
                     PAPERHUB_E2E_PDF=str(fixture), VITE_USE_MOCK='false', VITE_API_BASE_URL='/api/v1')
+                browser_env['PAPERHUB_E2E_METADATA_PDF'] = str(database.root / 'metadata-fixture.pdf')
+                browser_env['PAPERHUB_E2E_IMAGE_PDF'] = str(database.root / 'metadata-image-fixture.pdf')
                 npm = shutil.which('npm.cmd' if os.name == 'nt' else 'npm')
                 if not npm:
                     raise RuntimeError('npm is required for the requested browser verification')
@@ -441,7 +461,7 @@ def smoke(backend, env, database, frontend_e2e=False):
                 if result.returncode:
                     raise RuntimeError('Browser verification failed; see target/frontend-e2e-console.log')
                 print('PASS: isolated real frontend browser workflows')
-            print('PASS: Java 8 HTTP login/registration, K1-K11, PDFs, U5/U6/U10-U12, M1-M28, R1-R9 and P1-P6; all 68 API endpoints')
+            print('PASS: Java 8 HTTP login/registration, K1-K11, PDFs/metadata U13/U14, U5/U6/U10-U12, M1-M28, R1-R9 and P1-P6; all 70 API endpoints')
         finally:
             app.terminate()
             try:
@@ -481,6 +501,7 @@ def main():
                    PAPERHUB_JWT_SECRET=base64.b64encode(secrets.token_bytes(32)).decode(),
                    PAPERHUB_STORAGE_ROOT=str(database.root / 'storage'),
                    PAPERHUB_CLEANUP_ENABLED='false',
+                   PAPERHUB_CROSSREF_ENABLED='false',
                    PAPERHUB_TEST_DATA_DIR=str(database.data.resolve()))
         env['MAVEN_OPTS'] = env.get('MAVEN_OPTS', '') + ' -Dfile.encoding=UTF-8'
         (backend / 'target').mkdir(exist_ok=True)

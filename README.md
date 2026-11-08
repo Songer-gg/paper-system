@@ -8,6 +8,10 @@
 
 第10批优先补齐普通用户注册：访问http://localhost:5173/register，注册成功后返回登录。开发管理员账号admin/admin123（需选择“管理员登录”），普通用户researcher/123456；详见[第10批交付](paperhub-back/BATCH_10_DELIVERY.md)。
 
+第11批已完成本机PDF信息解析：上传页选文件后自动补填信息，人工核对后提交；解析最多20MiB、前3页，不做OCR或联网补全。当前69个接口及250项后端测试通过，详见[第11批交付](paperhub-back/BATCH_11_DELIVERY.md)。
+
+第12批已完成DOI联网补全及用户实际PDF摘要修复：只向Crossref发送DOI，保留本机与手填结果；当前70接口、275项后端测试、10组浏览器流程通过，见[第12批交付](paperhub-back/BATCH_12_DELIVERY.md)。
+
 - 可帮助用户管理自己的论文。
 - 可辅助用户查找论文和学习自己上传的论文。
 - 可找寻写内部公开的论文，实现论文的共享学习。

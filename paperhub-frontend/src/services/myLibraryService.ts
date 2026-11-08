@@ -13,6 +13,14 @@ import { apiClient, nullableDetail } from './api'
 import { loadPersonalJSON, savePersonalJSON } from '@/utils/personalStorage'
 import * as userData from './userDataService'
 export type { UploadPayload, PaperEditPayload } from '../../../paperhub-api/ts/types'
+export function parsePaperMetadata(file: File) {
+  if (useMock) return Promise.reject(new Error('Mock模式不提供PDF自动识别'))
+  return requests.parsePaperMetadata(apiClient, file)
+}
+export function lookupPaperMetadata(doi: string) {
+  if (useMock) return Promise.reject(new Error('Mock模式不提供DOI联网补全'))
+  return requests.lookupPaperMetadata(apiClient, doi)
+}
 export interface DuplicateCheckResult {
   level: 'doi' | 'title' | 'file' | 'none'
   message: string

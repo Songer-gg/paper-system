@@ -43,6 +43,22 @@ export interface RegisterRequest {
   confirmPassword: string;
 }
 
+/** U13: ephemeral local extraction; candidate fields require user confirmation. */
+export interface PaperMetadata {
+  title: string;
+  authors: string[];
+  abstract: string;
+  doi: string;
+  journal: string;
+  year: number | null;
+  keywords: string[];
+  pageCount: number;
+  parsedPages: number;
+  sources: Partial<Record<'title' | 'authors' | 'abstract' | 'doi' | 'journal' | 'year' | 'keywords', 'metadata' | 'text' | 'crossref'>>;
+  warnings: string[];
+  lookupStatus?: 'found' | 'not-found' | 'unavailable' | 'disabled' | 'busy';
+}
+
 export interface LoginUser {
   id: number;
   username: string;

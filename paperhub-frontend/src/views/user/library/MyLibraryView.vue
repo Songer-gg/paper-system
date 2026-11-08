@@ -201,13 +201,19 @@ async function saveEdit() {
   if (!valid || !editingPaper.value) return
   await myLibrary.updatePaper(editingPaper.value.id, {
     title: editForm.title,
-    authors: editForm.authors.split(/[,，、\s]+/).filter(Boolean),
+    authors: editForm.authors
+      .split(/[,，、;；]+/)
+      .map((author) => author.trim())
+      .filter(Boolean),
     journal: editForm.journal,
     year: editForm.year,
     abstract: editForm.abstract,
     categoryId: editForm.categoryId,
     tagIds: editForm.tagIds,
-    keywords: editForm.keywords.split(/[,，、\s]+/).filter(Boolean),
+    keywords: editForm.keywords
+      .split(/[,，、;；]+/)
+      .map((keyword) => keyword.trim())
+      .filter(Boolean),
   })
   ElMessage.success('论文信息已更新')
   editDialogVisible.value = false

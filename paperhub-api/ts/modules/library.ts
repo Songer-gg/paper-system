@@ -1,5 +1,5 @@
 /**
- * 我的论文库 / 论文上传 / 详情 / 阅读器（U1–U9）
+ * 我的论文库 / 论文上传 / 详情 / 阅读器 / 本机解析与DOI补全（U1–U9、U13–U14）
  * 对应前端：myLibraryService.ts、PaperDetailView、PaperReaderView
  */
 import type { ApiClient } from "../http";
@@ -10,7 +10,20 @@ import type {
   PaperEditPayload,
   ReviewFlowAction,
   UploadPayload,
+  PaperMetadata,
 } from "../types";
+
+/** U13 authenticated local-only extraction. Does not create a paper or retain the PDF. */
+export function parsePaperMetadata(client: ApiClient, file: File): Promise<PaperMetadata> {
+  const form = new FormData();
+  form.append('file', file);
+  return client.upload('/papers/metadata/parse', form, 'POST');
+}
+
+/** U14: sends only a normalized DOI to Crossref, never PDF content. */
+export function lookupPaperMetadata(client: ApiClient, doi: string): Promise<PaperMetadata> {
+  return client.post('/papers/metadata/lookup', { doi });
+}
 
 /** U1 GET /papers/mine — 我的论文（私有 + 共享两组） */
 export function getMyPapers(client: ApiClient): Promise<{
