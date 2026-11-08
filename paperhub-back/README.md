@@ -2,7 +2,7 @@
 
 Java 8 / Spring Boot 2.7.18 / Spring Security 5 / MyBatis-Plus 3.5.7 / MySQL 8。
 
-已完成前6批，共59/67端点：认证、文件论文核心、分类标签、共享检索及审核/重复处理、个人阅读，以及P1/P2/P4、M2–M6、M26–M28资料/改密/用户管理与个人数据审计查询。详见[第6批交付](BATCH_6_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。前端仍使用Mock，真实接入按第9批实施。应用启动不自动建库或导入账号。
+已完成前7批，共64/67端点：认证、文件论文核心、分类标签、共享审核/重复处理、个人阅读、资料/用户管理，以及M21–M25举报处理、日志查询和只读设置。详见[第7批交付](BATCH_7_DELIVERY.md)及[分批计划](BACKEND_DEVELOPMENT_PLAN.md)。剩余P5/P6/M1聚合统计；前端仍使用Mock，真实接入按第9批实施。应用启动不自动建库或导入账号。
 
 8080提供受保护的后端API，直接浏览器访问可能返回1001；Vue页面从前端开发服务访问，通常为http://localhost:5173。真实前后端统一接入在第9批实施。
 
@@ -102,7 +102,7 @@ python -B paperhub-back/scripts/verify_mysql.py `
 
 脚本创建临时 MySQL 数据目录、随机端口及临时应用账号；核对 @@datadir 后才导入结构和种子。随机数据库密码和 JWT 密钥仅通过子进程环境传入，测试完成关闭临时服务并清理目录。集成测试拒绝在没有隔离标记或数据目录不匹配时更新数据库。
 
-脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用，经真实HTTP覆盖P1/P2/P4、M2–M6、M26–M28、R1–R9、共享/审核端点、K1–K11、认证及PDF流程。累计20项单元测试、152项真实MySQL集成测试，共172项通过。测试文件也在临时目录，不写本机存储；本批没有执行现有库的测试CRUD。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
+脚本执行mvn -Pmysql-it verify，并用Java8启动打包应用，经真实HTTP覆盖M21–M25、资料/用户管理、个人阅读、共享审核、K1–K11、认证及PDF流程。举报HTTP测试的待处理记录仅通过SQL写入已核对datadir的临时库，不新增用户提交接口。累计22项单元测试、177项真实MySQL集成测试，共199项通过。测试文件也在临时目录，不写本机存储；本批没有执行现有库的测试CRUD。报告在target/surefire-reports、target/failsafe-reports；应用验证日志在target/application-smoke.log。
 
 依赖扫描：
 
@@ -115,4 +115,4 @@ python -B scripts/audit_dependencies.py
 
 业务规则见[BUSINESS_RULES.md](../BUSINESS_RULES.md)。管理员私有论文元数据/PDF及他人收藏/阅读/笔记访问审计已落地；敏感审计不可用时不返回数据。
 
-历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)、[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)、[BATCH_4_DELIVERY.md](BATCH_4_DELIVERY.md)、[BATCH_5_DELIVERY.md](BATCH_5_DELIVERY.md)；本批交付及本机状态见[BATCH_6_DELIVERY.md](BATCH_6_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。
+历史交付见[BATCH_1_DELIVERY.md](BATCH_1_DELIVERY.md)、[BATCH_2_DELIVERY.md](BATCH_2_DELIVERY.md)、[BATCH_3_DELIVERY.md](BATCH_3_DELIVERY.md)、[BATCH_4_DELIVERY.md](BATCH_4_DELIVERY.md)、[BATCH_5_DELIVERY.md](BATCH_5_DELIVERY.md)、[BATCH_6_DELIVERY.md](BATCH_6_DELIVERY.md)；本批交付及本机状态见[BATCH_7_DELIVERY.md](BATCH_7_DELIVERY.md)，依赖公告及上线门禁见[SECURITY_AUDIT.md](SECURITY_AUDIT.md)。

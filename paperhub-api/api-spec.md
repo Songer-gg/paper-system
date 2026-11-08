@@ -184,6 +184,14 @@ M2/M3用户资料和M4/M26–M28个人数据读取先持久化访问审计，失
 
 管理员查询用户论文不会赋予普通用户权限。审核/下架/删除/用户管理/重复处理/举报处理自动写操作日志；敏感读取的日志必须在内容返回前成功持久化。paperTitle使用快照，不能因为论文改名或删除丢失含义。审核记录返回uploaderName/reviewerName，重复处理记录返回handlerName，举报返回reporterName，均由服务端关联用户取得，普通页面不靠管理员用户列表解析名字。
 
+M21默认status=all，仅接受all/pending/resolved；按createdAt/id倒序。M23仅resolved，按handledAt/id倒序。两者paperTitle均取report保存的快照，不连接当前论文标题替换；pending响应省略result/handledAt，resolved返回处理说明和时间，handlerId仅内部保存。
+
+M22的result及offlinePaperToo必须提供，结果去首尾空白后非空、最多500个Unicode字符；拒绝显式null、类型冒充和handlerId/status等未知字段。仅pending可处理；第二次返回409/1004，保留原结果。offlinePaperToo=true时：未删除approved共享原子转offline/moderation，使用固定“举报核实后下架”说明；已offline（含withdrawn）或已删除资源保持现状，仅关闭举报；未删除私有/pending/rejected资源返回400/1006且不关闭举报，须取消下架选项。false只关闭举报，不改变论文。处理人、时间、说明、实际下架与成功日志同事务。
+
+M21/M23读取先记录集合范围、逐条举报及私有来源审计；原论文已删除也保留举报快照。M24读取先审计，默认action=all，具体类型去首尾空白、最多50个Unicode字符，绑定参数精确匹配；未知类型返回空数组，%、_不作为通配符。按time/id倒序，userName为操作当时快照；不提供日志编辑/删除接口。读取日志只追加一次访问审计，不递归记录每条日志。
+
+M25仅返回platformName/slogan/logoText/version/maxUploadMB/allowedTypes/contactEmail，版本展示V1.0，maxUploadMB取实际100MiB限制，allowedTypes=.pdf；平台文案/联系邮箱沿用前端占位信息。只读并记录访问，不提供保存接口，不返回任何密钥、数据库地址或文件路径。
+
 ## 9. 输入限制
 
 标题1–255字符、作者非空数组、摘要非空且UTF-8<=60000字节、年份1000–当前年+1；DOI<=120 ASCII字符、期刊<=255、link<=500且http/https。分类/标签名1–50、标签色值#RRGGBB；笔记标题1–300、正文非空且UTF-8<=60000字节；意见/原因/处理说明<=500。

@@ -29,6 +29,10 @@ public class AuditService {
     public void mutation(SessionPrincipal actor, String action, String target) {
         append(actor, action, target, true);
     }
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void collection(SessionPrincipal actor,String collection,String action) {
+        append(actor,"敏感数据访问","collection="+collection+";action="+action,true);
+    }
     @Transactional(propagation = Propagation.MANDATORY)
     public void mutationResult(SessionPrincipal actor,String action,String target,boolean success) {
         append(actor,action,target,success);

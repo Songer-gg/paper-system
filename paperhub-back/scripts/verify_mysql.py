@@ -110,7 +110,7 @@ class TemporaryMySql:
         shutil.rmtree(self.root)
 
 
-def smoke(backend, env):
+def smoke(backend, env, database):
     jar = backend / 'target' / 'paperhub-back-0.1.0-SNAPSHOT.jar'
     app_env = dict(env, PAPERHUB_PORT=str(free_port()))
     log_path = backend / 'target' / 'application-smoke.log'
@@ -281,6 +281,24 @@ def smoke(backend, env):
             assert any(row['paperId'] == pid for row in api('GET', '/me/reading-records'))
             assert api('DELETE', note_path) is True
             assert api('GET', '/me/notes?' + urllib.parse.urlencode({'paperId': source_id, 'keyword': marker})) == []
+            # Seed only the verified temporary database: user report submission is outside this API scope.
+            database.sql("USE paperhub; INSERT INTO report(paper_id,paper_title,reporter_id,type,reason) "
+                         "SELECT id,title,2,'copyright','HTTP report " + marker + "' FROM paper WHERE id=" + str(pid) + ";")
+            report = next(row for row in admin_api('GET', '/admin/reports?status=pending')
+                          if row['reason'] == 'HTTP report ' + marker)
+            assert report['paperTitle'] == title and report['reporterName']
+            report_path = '/admin/reports/' + str(report['id']) + '/resolve'
+            assert admin_api('POST', report_path, {'result': 'HTTP verified', 'offlinePaperToo': True}) is True
+            assert admin_api('GET', '/admin/papers/' + str(pid))['offlineReason'] == 'moderation'
+            expect_error('GET', '/shared-papers/' + str(pid), None, 404, 1003)
+            expect_error('POST', report_path, {'result': 'Cannot overwrite', 'offlinePaperToo': False}, 409, 1004, True)
+            history = next(row for row in admin_api('GET', '/admin/report-records') if row['id'] == report['id'])
+            assert history['paperTitle'] == title and history['result'] == 'HTTP verified' and history['handledAt']
+            assert any('reportId=' + str(report['id']) + ';' in row['target']
+                       for row in admin_api('GET', '/admin/logs?' + urllib.parse.urlencode({'action': '举报处理'})))
+            settings = admin_api('GET', '/admin/settings')
+            assert settings['maxUploadMB'] == 100 and settings['allowedTypes'] == '.pdf' and len(settings) == 7
+            admin_api('PATCH', '/admin/papers/' + str(pid) + '/restore')
             admin_api('PATCH', '/admin/papers/' + str(pid) + '/offline')
             admin_api('PATCH', '/admin/papers/' + str(pid) + '/restore')
             api('PATCH', '/papers/' + str(pid) + '/review-flow', {'action': 'unshare'})
@@ -305,6 +323,8 @@ def smoke(backend, env):
             assert any(item['pairId'] == pair3['id'] and item['action'] == 'duplicate' for item in admin_api('GET', '/admin/duplicate-records'))
             for item in [linked, distinct, duplicate, original]:
                 admin_api('DELETE', '/admin/papers/' + str(item['id']))
+            assert next(row for row in admin_api('GET', '/admin/report-records')
+                        if row['id'] == report['id'])['paperTitle'] == title
             assert api('GET', '/me/profile')['id'] == 1
             changed_profile = api('PATCH', '/me/profile', {'name': 'HTTP researcher ' + marker,
                                                          'email': 'http-' + marker + '@example.com'})
@@ -331,7 +351,7 @@ def smoke(backend, env):
             expect_error('PATCH', '/admin/users/101/status', {'status': 'disabled'}, 400, 1006, True)
             assert any(row['paperId'] == pid and row['paper'] is None
                        for row in admin_api('GET', '/admin/users/1/reading-records'))
-            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M7-M20, R1-R9 and P1/P2/P4/M2-M6/M26-M28')
+            print('PASS: Java 8 HTTP login, K1-K11, PDFs, U5/U6/U10-U12, M7-M25, R1-R9 and P1/P2/P4/M2-M6/M26-M28')
         finally:
             app.terminate()
             try:
@@ -387,7 +407,7 @@ def main():
             raise RuntimeError('Maven verification failed; see target test reports')
         database.sql("USE paperhub; UPDATE `user` SET status='active',token_version=0 WHERE id IN (1,2,101); "
                      "UPDATE `user` SET role='user' WHERE id IN (1,2); UPDATE `user` SET role='admin' WHERE id=101;")
-        smoke(backend, env)
+        smoke(backend, env, database)
 
 
 if __name__ == '__main__':
